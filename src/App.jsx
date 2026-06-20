@@ -140,6 +140,7 @@ function QuickAdd({ productTypes, niches, onSave, showToast }) {
   const [selectedType, setSelectedType] = useState("");
   const [selectedNiche, setSelectedNiche] = useState("");
   const [notes, setNotes] = useState("");
+  const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const handleParse = () => setParsed(parseQuickAdd(text));
   const handleSave = async () => {
@@ -147,11 +148,11 @@ function QuickAdd({ productTypes, niches, onSave, showToast }) {
     if (!selectedType) return showToast("Seleccioná un Product Type", "error");
     if (!selectedNiche) return showToast("Seleccioná un Niche", "error");
     setSaving(true);
-    const { error } = await supabase.from("products").insert({ product_id:parsed.product_id, name:parsed.name, product_type_id:selectedType, niche_id:selectedNiche, created_date:parsed.date||null, created_time:parsed.time||null, notes });
+    const { error } = await supabase.from("products").insert({ product_id:parsed.product_id, name:parsed.name, product_type_id:selectedType, niche_id:selectedNiche, created_date:parsed.date||null, created_time:parsed.time||null, notes, url });
     setSaving(false);
     if (error) { if(error.code==="23505") return showToast("⚠️ Producto duplicado", "error"); return showToast("Error: "+error.message,"error"); }
     showToast("✓ Producto guardado","success");
-    setText(""); setParsed(null); setSelectedType(""); setSelectedNiche(""); setNotes(""); onSave();
+    setText(""); setParsed(null); setSelectedType(""); setSelectedNiche(""); setNotes(""); setUrl(""); onSave();
   };
   const s = { background:theme.card, border:`1px solid ${theme.border}`, borderRadius:10, padding:20, marginBottom:16 };
   const inp = { width:"100%", padding:"9px 12px", background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:7, color:theme.text, fontSize:13, outline:"none" };
@@ -183,6 +184,7 @@ function QuickAdd({ productTypes, niches, onSave, showToast }) {
             <div><label style={lbl}>Niche</label><select style={inp} value={selectedNiche} onChange={e=>setSelectedNiche(e.target.value)}><option value="">Seleccioná...</option>{niches.filter(n=>n.active).map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
           </div>
           <div style={{marginBottom:16}}><label style={lbl}>Notas (opcional)</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)}/></div>
+          <div style={{marginBottom:16}}><label style={lbl}>URL (opcional)</label><input style={inp} type="url" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://"/></div>
           <button onClick={handleSave} disabled={saving} style={{padding:"8px 16px",background:theme.accent,color:"#fff",border:"none",borderRadius:7,fontSize:13,fontWeight:600,cursor:"pointer"}}>{saving?"Guardando...":"💾 Guardar producto"}</button>
         </div>
       )}
@@ -207,7 +209,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
   });
   const handleSaveEdit = async () => {
     setSaving(true);
-    const { error } = await supabase.from("products").update({ name:editProduct.name, product_type_id:editProduct.product_type_id, niche_id:editProduct.niche_id, notes:editProduct.notes }).eq("id",editProduct.id);
+    const { error } = await supabase.from("products").update({ name:editProduct.name, product_type_id:editProduct.product_type_id, niche_id:editProduct.niche_id, notes:editProduct.notes, url:editProduct.url }).eq("id",editProduct.id);
     setSaving(false);
     if (error) return showToast("Error: "+error.message,"error");
     showToast("✓ Producto actualizado","success"); setEditProduct(null); onRefresh();
@@ -225,7 +227,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
         <div style={{fontSize:12,color:theme.muted,marginBottom:10}}>{filtered.length} resultados</div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr>{["Producto","ID","Type","LMH","Niche","Fecha",""].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",borderBottom:`1px solid ${theme.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Producto","ID","Type","LMH","Niche","Fecha","URL",""].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",borderBottom:`1px solid ${theme.border}`,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
             <tbody>
               {filtered.slice(0,100).map(p=>{
                 const pt=productTypes.find(t=>t.id===p.product_type_id);
@@ -238,6 +240,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{pt&&<span style={{padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,background:pt.lmh==="low"?"rgba(76,175,80,0.15)":pt.lmh==="medium"?"rgba(255,152,0,0.15)":"rgba(233,30,99,0.15)",color:lmhColor(pt.lmh)}}>{pt.lmh}</span>}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{n?.name||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,whiteSpace:"nowrap"}}>{p.created_date}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{p.url?<a href={p.url} target="_blank" rel="noopener noreferrer" style={{color:theme.accent,textDecoration:"underline",cursor:"pointer"}}>🔗</a>:"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}><button onClick={()=>setEditProduct({...p})} style={{padding:"3px 8px",background:theme.surface,border:`1px solid ${theme.border}`,borderRadius:5,color:theme.text,fontSize:11,cursor:"pointer"}}>Editar</button></td>
                   </tr>
                 );
@@ -258,6 +261,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
               <div><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Niche</label><select style={inp} value={editProduct.niche_id||""} onChange={e=>setEditProduct({...editProduct,niche_id:e.target.value})}><option value="">Seleccioná...</option>{niches.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></div>
             </div>
             <div style={{marginBottom:20}}><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={editProduct.notes||""} onChange={e=>setEditProduct({...editProduct,notes:e.target.value})}/></div>
+            <div style={{marginBottom:20}}><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>URL</label><input style={inp} type="url" value={editProduct.url||""} onChange={e=>setEditProduct({...editProduct,url:e.target.value})} placeholder="https://"/></div>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={()=>setEditProduct(null)} style={{padding:"8px 16px",background:theme.card,border:`1px solid ${theme.border}`,borderRadius:7,color:theme.text,fontSize:13,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleSaveEdit} disabled={saving} style={{padding:"8px 16px",background:theme.accent,border:"none",borderRadius:7,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
@@ -503,7 +507,7 @@ function ImportCSV({ productTypes, niches, onRefresh, showToast }) {
         if(tp) time=tp[1];
         if(!date) { const d=new Date(row.creation_date); if(!isNaN(d)){ date=d.toISOString().split("T")[0]; time=d.toTimeString().slice(0,5); } }
       }
-      const { error } = await supabase.from("products").insert({ product_id:row.product_id, name:row.product_name, product_type_id:pt?.id||null, niche_id:n?.id||null, created_date:date, created_time:time, notes:row.notes||null });
+      const { error } = await supabase.from("products").insert({ product_id:row.product_id, name:row.product_name, product_type_id:pt?.id||null, niche_id:n?.id||null, created_date:date, created_time:time, notes:row.notes||null, url:row.url||null });
       if(!error) ok++; else if(error.code==="23505") dupe++; else err++;
     }
     setImporting(false); setResults({ok,dupe,err});
