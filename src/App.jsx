@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import ImportarRoyalties from "./pages/ImportarRoyalties";
 
 const SUPABASE_URL = "https://edlunosajckvtskzcpch.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkbHVub3NhamNrdnRza3pjcGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Nzk4NjMsImV4cCI6MjA5NzU1NTg2M30.7a-wLtuoVeyRXJpQ2IsBPu8Qlu0MxOVIWJcfnSuqz4E";
@@ -701,13 +702,21 @@ const NAV = [
   { id:"niches", label:"Niches", icon:"🎯" },
   { section:"Ventas" },
   { id:"actions", label:"BS Actions", icon:"⭐" },
+  { id:"importar-royalties", label:"Importar Royalties", icon:"💰" },
   { section:"Análisis" },
   { id:"analytics", label:"Analytics", icon:"📈" },
   { id:"reports", label:"Reportes", icon:"📄" },
 ];
 
+function getInitialPage() {
+  if (typeof window === "undefined") return "dashboard";
+  const path = window.location.pathname.replace(/^\//, "");
+  if (!path) return "dashboard";
+  return path === "importar-royalties" ? "importar-royalties" : "dashboard";
+}
+
 export default function App() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState(getInitialPage);
   const [products, setProducts] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [niches, setNiches] = useState([]);
@@ -729,7 +738,29 @@ export default function App() {
     setLoading(false);
   }, []);
   useEffect(()=>{ loadAll(); },[loadAll]);
+  useEffect(() => {
+    const syncPageFromPath = () => {
+      const path = window.location.pathname.replace(/^\//, "");
+      if (path === "importar-royalties") {
+        setPage("importar-royalties");
+      } else if (path === "") {
+        setPage("dashboard");
+      }
+    };
+
+    syncPageFromPath();
+    window.addEventListener("popstate", syncPageFromPath);
+    return () => window.removeEventListener("popstate", syncPageFromPath);
+  }, []);
+
   const common = { products, productTypes, niches, nicheCategories, actions, onRefresh:loadAll, showToast };
+
+  const handleNavigate = (nextPage) => {
+    setPage(nextPage);
+    const path = nextPage === "importar-royalties" ? "/importar-royalties" : "/";
+    window.history.pushState({}, "", path);
+  };
+
   return (
     <div style={{display:"flex",minHeight:"100vh",background:theme.bg,color:theme.text,fontFamily:"Inter, system-ui, sans-serif"}}>
       <aside style={{width:220,minWidth:220,background:theme.surface,borderRight:`1px solid ${theme.border}`,padding:"24px 0",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh"}}>
@@ -741,7 +772,7 @@ export default function App() {
           {NAV.map((item,i)=>
             item.section
               ? <div key={i} style={{padding:"16px 20px 4px",fontSize:10,fontWeight:600,color:theme.muted,letterSpacing:"0.1em",textTransform:"uppercase"}}>{item.section}</div>
-              : <div key={item.id} onClick={()=>setPage(item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 20px",fontSize:13,color:page===item.id?theme.accentLight:theme.muted,cursor:"pointer",background:page===item.id?"rgba(108,99,255,0.1)":"transparent",borderLeft:`3px solid ${page===item.id?theme.accent:"transparent"}`}}>
+              : <div key={item.id} onClick={()=>handleNavigate(item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 20px",fontSize:13,color:page===item.id?theme.accentLight:theme.muted,cursor:"pointer",background:page===item.id?"rgba(108,99,255,0.1)":"transparent",borderLeft:`3px solid ${page===item.id?theme.accent:"transparent"}`}}>
                   <span style={{fontSize:16,width:20,textAlign:"center"}}>{item.icon}</span>{item.label}
                 </div>
           )}
@@ -755,8 +786,7 @@ export default function App() {
               {page==="dashboard"&&<Dashboard {...common}/>}
               {page==="quickadd"&&<QuickAdd {...common} onSave={loadAll}/>}
               {page==="products"&&<ProductMaster {...common}/>}
-              {page==="import"&&<ImportCSV {...common}/>}
-              {page==="types"&&<ProductTypes {...common}/>}
+              {page==="import"&&<ImportCSV {...common}/>}              {page==="importar-royalties"&&<ImportarRoyalties showToast={showToast} />}               {page==="types"&&<ProductTypes {...common}/>}
               {page==="niches"&&<Niches {...common}/>}
               {page==="actions"&&<BestSellerActions {...common}/>}
               {page==="analytics"&&<Analytics {...common}/>}
