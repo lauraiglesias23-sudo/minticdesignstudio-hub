@@ -1,229 +1,271 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://edlunosajckvtskzcpch.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkbHVub3NhamNrdnRza3pjcGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Nzk4NjMsImV4cCI6MjA5NzU1NTg2M30.7a-wLtuoVeyRXJpQ2IsBPu8Qlu0MxOVIWJcfnSuqz4E";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
-const theme = {
-  bg: "#0F1117",
-  surface: "#1A1D27",
-  card: "#22263A",
-  border: "#2E3250",
-  accent: "#6C63FF",
-  accentLight: "#8B84FF",
-  text: "#F0F0F5",
-  muted: "#7A7D9C",
-  success: "#4CAF50",
-  danger: "#F44336",
-  medium: "#FF9800",
-};
+function normalizeProductId(raw) {
+  return raw.replace(/-/g, "");
+}
 
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
+function parseRoyaltyUSD(raw) {
+  if (!raw) return 0;
+  const clean = raw.replace(/[^0-9.]/g, "");
+  const val = parseFloat(clean);
+  return isNaN(val) ? 0 : val;
+}
 
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
+function parseDate(raw) {
+  return new Date(raw);
+}
 
-    if (char === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        field += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "," && !inQuotes) {
-      row.push(field);
-      field = "";
-    } else if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && text[i + 1] === "\n") {
-        i += 1;
-      }
-      row.push(field);
-      field = "";
-      if (row.some((value) => value.trim())) {
-        rows.push(row);
-      }
-      row = [];
+function parseCSV(text) {
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (lines.length < 2) throw new Error("CSV vacío o sin datos.");
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  return lines.slice(1).map((line) => {
+    const cols = [];
+    let cur = "";
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === "," && !inQuote) { cols.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    const row = {};
+    headers.forEach((h, i) => { row[h] = cols[i] ?? ""; });
+    return row;
+  });
+}
+
+async function importCSV(rows, onProgress) {
+  const log = [];
+  let salesInserted = 0, ordersCreated = 0, customersCreated = 0, productsCreated = 0, productsUpdated = 0;
+
+  onProgress("Procesando clientes...", 10);
+  const customerMap = new Map();
+  for (const row of rows) {
+    const shippedTo = row["Shipped To"];
+    if (!shippedTo || customerMap.has(shippedTo)) continue;
+    const dashIdx = shippedTo.indexOf(" - ");
+    const name = dashIdx >= 0 ? shippedTo.substring(0, dashIdx).trim() : null;
+    const location = dashIdx >= 0 ? shippedTo.substring(dashIdx + 3).trim() : null;
+    customerMap.set(shippedTo, { name, location });
+  }
+
+  onProgress("Sincronizando clientes...", 20);
+  const customerIdMap = new Map();
+  for (const [shippedTo, data] of customerMap.entries()) {
+    const { data: existing } = await supabase.from("customers").select("id").eq("shipped_to", shippedTo).single();
+    if (existing) {
+      customerIdMap.set(shippedTo, existing.id);
     } else {
-      field += char;
+      const { data: inserted, error } = await supabase.from("customers").insert({ shipped_to: shippedTo, name: data.name, location: data.location }).select("id").single();
+      if (error) { log.push(`⚠️ Customer error [${shippedTo}]: ${error.message}`); continue; }
+      customerIdMap.set(shippedTo, inserted.id);
+      customersCreated++;
     }
   }
 
-  if (field.length || row.length) {
-    row.push(field);
-    if (row.some((value) => value.trim())) {
-      rows.push(row);
+  onProgress("Sincronizando órdenes...", 35);
+  const orderMap = new Map();
+  const orderGroups = new Map();
+  for (const row of rows) {
+    const shippedTo = row["Shipped To"];
+    const dateOnly = parseDate(row["Date"]).toISOString().split("T")[0];
+    const key = `${shippedTo}|${dateOnly}`;
+    if (!orderGroups.has(key)) orderGroups.set(key, []);
+    orderGroups.get(key).push(row);
+  }
+  for (const [key, orderRows] of orderGroups.entries()) {
+    const [shippedTo, dateOnly] = key.split("|");
+    const customerId = customerIdMap.get(shippedTo);
+    if (!customerId) continue;
+    const totalItems = orderRows.reduce((sum, r) => sum + parseInt(r["Quantity"] || 0), 0);
+    const totalUsd = orderRows.reduce((sum, r) => sum + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
+    const { data: existing } = await supabase.from("orders").select("id").eq("customer_id", customerId).eq("order_date", dateOnly).single();
+    if (existing) {
+      orderMap.set(key, existing.id);
+    } else {
+      const { data: inserted, error } = await supabase.from("orders").insert({ customer_id: customerId, order_date: dateOnly, total_items: totalItems, total_usd: parseFloat(totalUsd.toFixed(4)) }).select("id").single();
+      if (error) { log.push(`⚠️ Order error [${key}]: ${error.message}`); continue; }
+      orderMap.set(key, inserted.id);
+      ordersCreated++;
     }
   }
 
-  return rows;
+  onProgress("Insertando ventas...", 55);
+  const { data: existingProducts } = await supabase.from("products").select("id, product_id, lifetime_earnings, lifetime_orders, lifetime_units, lifetime_customers, months_sold, first_sale_date, last_sale_date");
+  const productDbMap = new Map();
+  for (const p of existingProducts || []) productDbMap.set(normalizeProductId(p.product_id), p);
+
+  const productSalesMap = new Map();
+  for (const row of rows) {
+    const pid = normalizeProductId(row["Product ID"]);
+    if (!productSalesMap.has(pid)) productSalesMap.set(pid, []);
+    productSalesMap.get(pid).push(row);
+  }
+
+  for (const row of rows) {
+    const shippedTo = row["Shipped To"];
+    const dateOnly = parseDate(row["Date"]).toISOString().split("T")[0];
+    const orderId = orderMap.get(`${shippedTo}|${dateOnly}`);
+    const customerId = customerIdMap.get(shippedTo);
+    const { error } = await supabase.from("sales").insert({
+      order_id: orderId || null, customer_id: customerId || null,
+      product_id: row["Product ID"], product_name: row["Product Title"],
+      product_type_code: row["Product Type"], sale_date: parseDate(row["Date"]).toISOString(),
+      quantity: parseInt(row["Quantity"]) || 1, royalty_rate: row["Royalty Rate"],
+      royalty_usd: parseRoyaltyUSD(row["Royalty (USD)"]), status: row["Status"] || "pending",
+      is_customized: row["Is Customized"] === "Yes", referred: row["Referred"],
+      shipped_to: shippedTo, store: row["Store"],
+    });
+    if (error && !error.message.includes("duplicate")) log.push(`⚠️ Sale error [${row["Product ID"]}]: ${error.message}`);
+    else salesInserted++;
+  }
+
+  onProgress("Actualizando métricas de productos...", 75);
+  for (const [normPid, pidRows] of productSalesMap.entries()) {
+    const activeRows = pidRows.filter((r) => r["Is Canceled"] !== "Yes" && r["Status"] !== "canceled");
+    const totalEarnings = activeRows.reduce((s, r) => s + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
+    const totalUnits = activeRows.reduce((s, r) => s + parseInt(r["Quantity"] || 0), 0);
+    const uniqueCustomers = new Set(activeRows.map((r) => r["Shipped To"])).size;
+    const monthSet = new Set(activeRows.map((r) => { const d = parseDate(r["Date"]); return `${d.getFullYear()}-${d.getMonth()}`; }));
+    const monthsSold = monthSet.size;
+    const dates = activeRows.map((r) => parseDate(r["Date"]));
+    const firstSale = new Date(Math.min(...dates)).toISOString().split("T")[0];
+    const lastSale = new Date(Math.max(...dates)).toISOString().split("T")[0];
+    const uniqueOrders = new Set(activeRows.map((r) => { const d = parseDate(r["Date"]).toISOString().split("T")[0]; return `${r["Shipped To"]}|${d}`; })).size;
+    const repeatSeller = monthsSold > 1;
+    const highSignalSeller = uniqueCustomers > 1 && (monthsSold > 1 || repeatSeller);
+    const existing = productDbMap.get(normPid);
+    if (existing) {
+      const { error } = await supabase.from("products").update({
+        lifetime_earnings: parseFloat(((existing.lifetime_earnings || 0) + totalEarnings).toFixed(4)),
+        lifetime_orders: (existing.lifetime_orders || 0) + uniqueOrders,
+        lifetime_units: (existing.lifetime_units || 0) + totalUnits,
+        lifetime_customers: Math.max(existing.lifetime_customers || 0, uniqueCustomers),
+        months_sold: Math.max(existing.months_sold || 0, monthsSold),
+        first_sale_date: existing.first_sale_date < firstSale ? existing.first_sale_date : firstSale,
+        last_sale_date: existing.last_sale_date > lastSale ? existing.last_sale_date : lastSale,
+        repeat_seller: Math.max(existing.months_sold || 0, monthsSold) > 1,
+        high_signal_seller: Math.max(existing.lifetime_customers || 0, uniqueCustomers) > 1 && Math.max(existing.months_sold || 0, monthsSold) > 1,
+        updated_at: new Date().toISOString(),
+      }).eq("id", existing.id);
+      if (error) log.push(`⚠️ Product update error [${normPid}]: ${error.message}`);
+      else productsUpdated++;
+    } else {
+      const { error } = await supabase.from("products").insert({
+        product_id: normPid, name: pidRows[0]["Product Title"],
+        is_new: false, is_evergreen: true,
+        lifetime_earnings: parseFloat(totalEarnings.toFixed(4)),
+        lifetime_orders: uniqueOrders, lifetime_units: totalUnits,
+        lifetime_customers: uniqueCustomers, months_sold: monthsSold,
+        first_sale_date: firstSale, last_sale_date: lastSale,
+        repeat_seller: repeatSeller, high_signal_seller: highSignalSeller,
+      });
+      if (error) log.push(`⚠️ Product insert error [${normPid}]: ${error.message}`);
+      else productsCreated++;
+    }
+  }
+
+  onProgress("Actualizando totales de clientes...", 90);
+  for (const [shippedTo, customerId] of customerIdMap.entries()) {
+    const customerRows = rows.filter((r) => r["Shipped To"] === shippedTo);
+    const customerOrders = new Set(customerRows.map((r) => parseDate(r["Date"]).toISOString().split("T")[0])).size;
+    const totalSpent = customerRows.reduce((s, r) => s + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
+    const dates = customerRows.map((r) => parseDate(r["Date"]));
+    await supabase.from("customers").update({
+      total_orders: customerOrders, total_spent_usd: parseFloat(totalSpent.toFixed(2)),
+      first_order_date: new Date(Math.min(...dates)).toISOString().split("T")[0],
+      last_order_date: new Date(Math.max(...dates)).toISOString().split("T")[0],
+    }).eq("id", customerId);
+  }
+
+  onProgress("Importación completa.", 100);
+  return { salesInserted, ordersCreated, customersCreated, productsCreated, productsUpdated, warnings: log };
 }
 
-function normalizeHeader(value) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
+export default function ImportarRoyalties() {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [progress, setProgress] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-export default function ImportarRoyalties({ showToast }) {
-  const [rows, setRows] = useState([]);
-  const [importing, setImporting] = useState(false);
-  const [results, setResults] = useState(null);
-  const [fileName, setFileName] = useState("");
-
-  const handleFile = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result || "";
-      const parsed = parseCsv(text);
-      if (parsed.length < 2) {
-        showToast("No se detectaron filas válidas en el archivo", "error");
-        return;
-      }
-
-      const headers = parsed[0].map(normalizeHeader);
-      const data = parsed
-        .slice(1)
-        .map((row) => {
-          const entry = {};
-          headers.forEach((header, index) => {
-            entry[header] = (row[index] || "").trim();
-          });
-          return entry;
-        })
-        .filter((row) => Object.values(row).some((value) => value));
-
-      setRows(data);
-      setResults(null);
-    };
-
-    reader.readAsText(file);
-  };
+  const handleFile = useCallback((e) => {
+    const f = e.target.files?.[0] || e.dataTransfer?.files?.[0];
+    if (f) setFile(f);
+  }, []);
 
   const handleImport = async () => {
-    if (!rows.length) {
-      showToast("Primero seleccioná un archivo CSV", "error");
-      return;
-    }
-
-    setImporting(true);
-    setResults(null);
-
-    const payload = rows.map((row, index) => ({
-      ...row,
-      row_number: index + 2,
-      source_file: fileName,
-      imported_at: new Date().toISOString(),
-    }));
-
-    let result = await supabase.from("zazzle_royalty_history").insert(payload);
-
-    if (result.error && ["42P01", "42703"].includes(result.error.code)) {
-      result = await supabase.from("royalty_history").insert(payload);
-    }
-
-    if (result.error && ["42P01", "42703"].includes(result.error.code)) {
-      result = await supabase.from("royalty_imports").insert({
-        source_file: fileName,
-        imported_at: new Date().toISOString(),
-        rows: payload,
-      });
-    }
-
-    setImporting(false);
-
-    if (result.error) {
-      showToast(`No se pudo importar: ${result.error.message}`, "error");
-      setResults({ ok: 0, err: payload.length });
-      return;
-    }
-
-    setResults({ ok: payload.length, err: 0 });
-    showToast(`✓ ${payload.length} registros importados a Supabase`, "success");
+    if (!file) return;
+    setStatus("running"); setProgress(0); setResult(null); setError(null);
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      const res = await importCSV(rows, (msg, pct) => { setProgressMsg(msg); setProgress(pct); });
+      setResult(res); setStatus("done");
+    } catch (err) { setError(err.message); setStatus("error"); }
   };
 
+  const reset = () => { setFile(null); setStatus("idle"); setProgress(0); setProgressMsg(""); setResult(null); setError(null); };
+
   return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 700 }}>Importar Royalties</div>
-        <div style={{ fontSize: 13, color: theme.muted, marginTop: 4 }}>
-          Importá el historial de royalties de Zazzle desde un CSV y envialo a Supabase
-        </div>
-      </div>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+      <h2 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "0.25rem" }}>Importar Royalties Zazzle</h2>
+      <p style={{ color: "#666", fontSize: "0.875rem", marginBottom: "1.5rem" }}>Royalty history CSV → base de datos</p>
 
-      <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 10, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", marginBottom: 10 }}>
-          Archivo esperado
-        </div>
-        <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.7 }}>
-          • Cargá un CSV exportado desde Zazzle o una tabla con columnas separadas por comas.<br />
-          • Los datos se normalizan y se preparan para insertarse en Supabase.<br />
-          • Este flujo es independiente del importador existente de inventario.
-        </div>
-      </div>
-
-      <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 10, padding: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", marginBottom: 8 }}>
-          Seleccioná el archivo
-        </div>
-        <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ color: theme.text, marginBottom: 16, display: "block" }} />
-
-        {rows.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, marginBottom: 8 }}>
-              <span style={{ color: theme.accentLight, fontWeight: 700 }}>{rows.length}</span> filas detectadas
-            </div>
-            <div style={{ overflowX: "auto", maxHeight: 240, overflowY: "auto", marginBottom: 12 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    {Object.keys(rows[0]).slice(0, 6).map((key) => (
-                      <th key={key} style={{ textAlign: "left", padding: "6px 10px", fontSize: 10, fontWeight: 600, color: theme.muted, textTransform: "uppercase", borderBottom: `1px solid ${theme.border}` }}>
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 10).map((row, index) => (
-                    <tr key={`${row.source_file || "row"}-${index}`}>
-                      {Object.values(row).slice(0, 6).map((value, valueIndex) => (
-                        <td key={`${index}-${valueIndex}`} style={{ padding: "6px 10px", borderBottom: `1px solid ${theme.border}`, fontSize: 11, color: theme.muted }}>
-                          {String(value).slice(0, 80)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {rows.length > 10 && <div style={{ textAlign: "center", padding: 8, color: theme.muted, fontSize: 11 }}>...y {rows.length - 10} más</div>}
-            </div>
-            <button onClick={handleImport} disabled={importing} style={{ padding: "8px 16px", background: theme.accent, color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              {importing ? "Importando..." : `⬆ Importar ${rows.length} registros`}
+      {status === "idle" && (
+        <>
+          <input type="file" accept=".csv" onChange={handleFile} style={{ marginBottom: "1rem", display: "block" }} />
+          {file && (
+            <button onClick={handleImport} style={{ padding: "0.75rem 1.5rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: "0.95rem" }}>
+              Importar {file.name}
             </button>
-          </div>
-        )}
+          )}
+        </>
+      )}
 
-        {results && (
-          <div style={{ background: theme.surface, borderRadius: 8, padding: 16, marginTop: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Resultado:</div>
-            <div style={{ display: "flex", gap: 20, fontSize: 13 }}>
-              <span style={{ color: theme.success }}>✓ {results.ok} importados</span>
-              {results.err > 0 && <span style={{ color: theme.danger }}>✗ {results.err} errores</span>}
-            </div>
+      {status === "running" && (
+        <div>
+          <div style={{ height: 6, background: "#eee", borderRadius: 3, marginBottom: "0.75rem" }}>
+            <div style={{ height: "100%", width: `${progress}%`, background: "#1a1a1a", borderRadius: 3, transition: "width 0.3s" }} />
           </div>
-        )}
-      </div>
+          <p style={{ color: "#555", fontSize: "0.875rem" }}>{progressMsg}</p>
+        </div>
+      )}
+
+      {status === "done" && result && (
+        <div style={{ background: "#f4faf4", border: "1px solid #c3e6c3", borderRadius: 8, padding: "1.25rem" }}>
+          <div style={{ fontWeight: 600, marginBottom: "1rem" }}>✅ Importación completa</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+            {[["Ventas", result.salesInserted], ["Órdenes creadas", result.ordersCreated], ["Clientes nuevos", result.customersCreated], ["Productos creados", result.productsCreated], ["Productos actualizados", result.productsUpdated]].map(([label, val]) => (
+              <div key={label}><div style={{ fontSize: "1.5rem", fontWeight: 600 }}>{val}</div><div style={{ fontSize: "0.75rem", color: "#555" }}>{label}</div></div>
+            ))}
+          </div>
+          {result.warnings.length > 0 && (
+            <details style={{ fontSize: "0.8rem", color: "#885500", marginBottom: "0.5rem" }}>
+              <summary>{result.warnings.length} advertencia(s)</summary>
+              {result.warnings.map((w, i) => <p key={i} style={{ margin: "0.2rem 0" }}>{w}</p>)}
+            </details>
+          )}
+          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer", marginTop: "0.5rem" }}>Importar otro</button>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div style={{ background: "#fdf4f4", border: "1px solid #e6c3c3", borderRadius: 8, padding: "1.25rem" }}>
+          <div style={{ fontWeight: 600, color: "#c00", marginBottom: "0.5rem" }}>Error</div>
+          <p style={{ fontSize: "0.875rem", color: "#660000" }}>{error}</p>
+          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer" }}>Reintentar</button>
+        </div>
+      )}
     </div>
   );
 }
