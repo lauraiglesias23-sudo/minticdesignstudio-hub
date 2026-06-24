@@ -26,6 +26,11 @@ function parseDate(raw) {
   return new Date(raw);
 }
 
+function safeDateISO(d) {
+  if (!d || isNaN(d.getTime())) return null;
+  return d.toISOString().split('T')[0];
+}
+
 function parseCSV(text) {
   const lines = text.split("\n").filter((l) => l.trim());
   if (lines.length < 2) throw new Error("CSV vacío o sin datos.");
