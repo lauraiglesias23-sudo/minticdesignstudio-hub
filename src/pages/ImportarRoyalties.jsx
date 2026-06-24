@@ -84,7 +84,7 @@ async function importCSV(rows, onProgress) {
   const orderGroups = new Map();
   for (const row of rows) {
     const shippedTo = row["Shipped To"];
-    const dateOnly = parseDate(row["Date"]).toISOString().split("T")[0];
+    const dateOnly = safeDateISO(parseDate(row["Date"]));
     const key = `${shippedTo}|${dateOnly}`;
     if (!orderGroups.has(key)) orderGroups.set(key, []);
     orderGroups.get(key).push(row);
@@ -120,13 +120,13 @@ async function importCSV(rows, onProgress) {
 
   for (const row of rows) {
     const shippedTo = row["Shipped To"];
-    const dateOnly = parseDate(row["Date"]).toISOString().split("T")[0];
+    const dateOnly = safeDateISO(parseDate(row["Date"]));
     const orderId = orderMap.get(`${shippedTo}|${dateOnly}`);
     const customerId = customerIdMap.get(shippedTo);
     const { error } = await supabase.from("sales").insert({
       order_id: orderId || null, customer_id: customerId || null,
       product_id: row["Product ID"], product_name: row["Product Title"],
-      product_type_code: row["Product Type"], sale_date: parseDate(row["Date"]).toISOString(),
+      product_type_code: row["Product Type"], sale_date: safeDateISO(parseDate(row["Date"])),
       quantity: parseInt(row["Quantity"]) || 1, royalty_rate: row["Royalty Rate"],
       royalty_usd: parseRoyaltyUSD(row["Royalty (USD)"]), status: row["Status"] || "pending",
       is_customized: row["Is Customized"] === "Yes", referred: row["Referred"],
