@@ -139,10 +139,10 @@ async function importCSV(rows, onProgress) {
     const uniqueCustomers = new Set(activeRows.map((r) => r["Shipped To"])).size;
     const monthSet = new Set(activeRows.map((r) => { const d = parseDate(r["Date"]); return `${d.getFullYear()}-${d.getMonth()}`; }));
     const monthsSold = monthSet.size;
-    const dates = activeRows.map((r) => parseDate(r["Date"]));
-    const firstSale = new Date(Math.min(...dates)).toISOString().split("T")[0];
-    const lastSale = new Date(Math.max(...dates)).toISOString().split("T")[0];
-    const uniqueOrders = new Set(activeRows.map((r) => { const d = parseDate(r["Date"]).toISOString().split("T")[0]; return `${r["Shipped To"]}|${d}`; })).size;
+    const dates = activeRows.map((r) => parseDate(r["Date"])).filter(d => d && !isNaN(d.getTime()));
+    const firstSale = dates.length ? safeDateISO(new Date(Math.min(...dates))) : null;
+    const lastSale = dates.length ? safeDateISO(new Date(Math.max(...dates))) : null;
+    const uniqueOrders = new Set(activeRows.map((r) => { const d = safeDateISO(parseDate(r["Date"])); return `${r["Shipped To"]}|${d}`; })).size;
     const repeatSeller = monthsSold > 1;
     const highSignalSeller = uniqueCustomers > 1 && (monthsSold > 1 || repeatSeller);
     const existing = productDbMap.get(normPid);
@@ -179,13 +179,13 @@ async function importCSV(rows, onProgress) {
   onProgress("Actualizando totales de clientes...", 90);
   for (const [shippedTo, customerId] of customerIdMap.entries()) {
     const customerRows = rows.filter((r) => r["Shipped To"] === shippedTo);
-    const customerOrders = new Set(customerRows.map((r) => parseDate(r["Date"]).toISOString().split("T")[0])).size;
+    const customerOrders = new Set(customerRows.map((r) => safeDateISO(parseDate(r["Date"])))).size;
     const totalSpent = customerRows.reduce((s, r) => s + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
-    const dates = customerRows.map((r) => parseDate(r["Date"]));
+    const dates = customerRows.map((r) => parseDate(r["Date"])).filter(d => d && !isNaN(d.getTime()));
     await supabase.from("customers").update({
       total_orders: customerOrders, total_spent_usd: parseFloat(totalSpent.toFixed(2)),
-      first_order_date: new Date(Math.min(...dates)).toISOString().split("T")[0],
-      last_order_date: new Date(Math.max(...dates)).toISOString().split("T")[0],
+      first_order_date: dates.length ? safeDateISO(new Date(Math.min(...dates))) : null,
+      last_order_date: dates.length ? safeDateISO(new Date(Math.max(...dates))) : null,
     }).eq("id", customerId);
   }
 
