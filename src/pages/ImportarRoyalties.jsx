@@ -18,6 +18,9 @@ function parseRoyaltyUSD(raw) {
 }
 
 function parseDate(raw) {
+  if (!raw) return new Date(NaN);
+  const mdy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) return new Date(parseInt(mdy[3]), parseInt(mdy[1]) - 1, parseInt(mdy[2]));
   return new Date(raw);
 }
 
