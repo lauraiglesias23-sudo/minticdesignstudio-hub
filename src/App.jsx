@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ImportarRoyalties from "./pages/ImportarRoyalties";
+import ImportarReferrals from "./pages/ImportarReferrals";
 
 const SUPABASE_URL = "https://edlunosajckvtskzcpch.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkbHVub3NhamNrdnRza3pjcGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Nzk4NjMsImV4cCI6MjA5NzU1NTg2M30.7a-wLtuoVeyRXJpQ2IsBPu8Qlu0MxOVIWJcfnSuqz4E";
@@ -763,6 +764,8 @@ const NAV = [
   { section:"Ventas" },
   { id:"actions", label:"BS Actions" },
   { id:"importar-royalties", label:"Importar Royalties" },
+  { id:"importar-referrals", label:"Importar Referrals" },
+
   { section:"Analisis" },
   { id:"analytics", label:"Analytics" },
   { id:"reports", label:"Reportes" },
@@ -850,6 +853,8 @@ export default function App() {
               {page==="products"&&<ProductMaster {...common}/>}
               {page==="import"&&<ImportCSV {...common}/>}
               {page==="importar-royalties"&&<ImportarRoyalties showToast={showToast}/>}
+            {page==="importar-referrals"&&<ImportarReferrals showToast={showToast}/>}
+
               {page==="types"&&<ProductTypes {...common}/>}
               {page==="niches"&&<Niches {...common}/>}
               {page==="actions"&&<BestSellerActions {...common}/>}
