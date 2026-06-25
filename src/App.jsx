@@ -99,7 +99,7 @@ function Dashboard({ products, actions, productTypes, niches, inventoryTotal }) 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
         <div style={{background:theme.surface,border:`1px solid ${theme.border}`,borderRadius:8,padding:20}}>
           <div style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:12}}>Inventario total</div>
-          <div style={{fontSize:32,fontWeight:700,marginBottom:16,color:theme.text}}>{products.length}</div>
+          <div style={{fontSize:32,fontWeight:700,marginBottom:16,color:theme.text}}>{inventoryTotal}</div>
           <div style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",marginBottom:8}}>Distribución LMH</div>
           <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",gap:2,marginBottom:8}}>
             {["low","medium","high"].map(k=><div key={k} style={{width:`${(lmhCounts[k]||0)/total*100}%`,background:lmhColor(k),borderRadius:2}}/>)}
