@@ -1,7 +1,8 @@
-cd /workspaces/minticdesignstudio-hub && git add src/pages/ImportarReferrals.jsx && git commit -m "feat: importer de referrals" && git push
+import { useState, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-
-meta.env.VITE_SUPABASE_URL,
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
