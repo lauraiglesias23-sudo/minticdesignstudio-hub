@@ -67,7 +67,7 @@ function Toast({ msg, type, onClose }) {
   );
 }
 
-function Dashboard({ products, actions, productTypes, niches }) {
+function Dashboard({ products, actions, productTypes, niches, inventoryTotal }) {
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
   const weekAgo = new Date(now - 7*86400000).toISOString().split("T")[0];
@@ -782,19 +782,25 @@ export default function App() {
   const [niches, setNiches] = useState([]);
   const [nicheCategories, setNicheCategories] = useState([]);
   const [actions, setActions] = useState([]);
+  const [inventoryTotal, setInventoryTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type="success") => setToast({msg,type});
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [p,pt,n,nc,a] = await Promise.all([
+    const [p,pt,n,nc,a,snap,newProds] = await Promise.all([
       supabase.from("products").select("*").order("created_date",{ascending:false}),
       supabase.from("product_types").select("*").order("name"),
       supabase.from("niches").select("*").order("name"),
       supabase.from("niche_categories").select("*").order("name"),
       supabase.from("best_seller_actions").select("*").order("date",{ascending:false}),
+      supabase.from("inventory_snapshots").select("total_products").eq("snapshot_date","2026-06-22").eq("snapshot_type","niche"),
+      supabase.from("products").select("id",{count:"exact",head:true}).gt("created_date","2026-06-22"),;
     ]);
     setProducts(p.data||[]); setProductTypes(pt.data||[]); setNiches(n.data||[]); setNicheCategories(nc.data||[]); setActions(a.data||[]);
+    const snapTotal = (snap.data||[]).reduce((acc,r)=>acc+r.total_products,0);
+    const newCount = newProds.count||0;
+    setInventoryTotal(snapTotal + newCount);
     setLoading(false);
   }, []);
   useEffect(()=>{ loadAll(); },[loadAll]);
@@ -809,7 +815,7 @@ export default function App() {
     return () => window.removeEventListener("popstate", syncPageFromPath);
   }, []);
 
-  const common = { products, productTypes, niches, nicheCategories, actions, onRefresh:loadAll, showToast };
+  const common = { products, productTypes, niches, nicheCategories, actions, onRefresh:loadAll, showToast, inventoryTotal };
 
   const handleNavigate = (nextPage) => {
     setPage(nextPage);
@@ -833,7 +839,7 @@ export default function App() {
                 </div>
           )}
         </nav>
-        <div style={{padding:"14px 20px",borderTop:`1px solid ${theme.border}`,fontSize:11,color:theme.muted}}>{products.length} productos</div>
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${theme.border}`,fontSize:11,color:theme.muted}}>{inventoryTotal} productos productos</div>
       </aside>
       <main style={{flex:1,padding:"28px 32px",overflowY:"auto",minWidth:0,background:theme.bg}}>
         {loading
