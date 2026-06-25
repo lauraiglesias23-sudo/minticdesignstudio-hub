@@ -12,23 +12,27 @@ function normalizeProductId(raw) {
 
 function parseRoyaltyUSD(raw) {
   if (!raw) return 0;
-  const clean = raw.replace(/[^0-9.]/g, "");
+  // Quitar asteriscos, espacios, letras de moneda y símbolos — dejar solo números y punto
+  const clean = raw.replace(/\*+/g, "").replace(/[^0-9.]/g, "");
   const val = parseFloat(clean);
   return isNaN(val) ? 0 : val;
 }
 
 function parseDate(raw) {
   if (!raw) return new Date(NaN);
-  const parts = raw.split('/');
-  if (parts.length === 3) {
-    return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+  // Formato Zazzle: M/D/YYYY H:MM o M/D/YYYY
+  const parts = raw.trim().split(/[\s,]+/);
+  const dateParts = parts[0].split("/");
+  if (dateParts.length === 3) {
+    const [month, day, year] = dateParts;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   }
   return new Date(raw);
 }
 
 function safeDateISO(d) {
   if (!d || isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+  return d.toISOString().split("T")[0];
 }
 
 function parseCSV(text) {
@@ -56,6 +60,7 @@ async function importCSV(rows, onProgress) {
   const log = [];
   let salesInserted = 0, ordersCreated = 0, customersCreated = 0, productsCreated = 0, productsUpdated = 0;
 
+  // --- CLIENTES ---
   onProgress("Procesando clientes...", 10);
   const customerMap = new Map();
   for (const row of rows) {
@@ -74,13 +79,16 @@ async function importCSV(rows, onProgress) {
     if (existing) {
       customerIdMap.set(shippedTo, existing.id);
     } else {
-      const { data: inserted, error } = await supabase.from("customers").insert({ shipped_to: shippedTo, name: data.name, location: data.location }).select("id").single();
+      const { data: inserted, error } = await supabase.from("customers")
+        .insert({ shipped_to: shippedTo, name: data.name, location: data.location })
+        .select("id").single();
       if (error) { log.push(`⚠️ Customer error [${shippedTo}]: ${error.message}`); continue; }
       customerIdMap.set(shippedTo, inserted.id);
       customersCreated++;
     }
   }
 
+  // --- ÓRDENES ---
   onProgress("Sincronizando órdenes...", 35);
   const orderMap = new Map();
   const orderGroups = new Map();
@@ -97,19 +105,23 @@ async function importCSV(rows, onProgress) {
     if (!customerId) continue;
     const totalItems = orderRows.reduce((sum, r) => sum + parseInt(r["Quantity"] || 0), 0);
     const totalUsd = orderRows.reduce((sum, r) => sum + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
-    const { data: existing } = await supabase.from("orders").select("id").eq("customer_id", customerId).eq("order_date", dateOnly).single();
+    const { data: existing } = await supabase.from("orders").select("id")
+      .eq("customer_id", customerId).eq("order_date", dateOnly).single();
     if (existing) {
       orderMap.set(key, existing.id);
     } else {
-      const { data: inserted, error } = await supabase.from("orders").insert({ customer_id: customerId, order_date: dateOnly, total_items: totalItems, total_usd: parseFloat(totalUsd.toFixed(4)) }).select("id").single();
+      const { data: inserted, error } = await supabase.from("orders")
+        .insert({ customer_id: customerId, order_date: dateOnly, total_items: totalItems, total_usd: parseFloat(totalUsd.toFixed(4)) })
+        .select("id").single();
       if (error) { log.push(`⚠️ Order error [${key}]: ${error.message}`); continue; }
       orderMap.set(key, inserted.id);
       ordersCreated++;
     }
   }
 
+  // --- VENTAS ---
   onProgress("Insertando ventas...", 55);
-  const { data: existingProducts } = await supabase.from("products").select("id, product_id, lifetime_earnings, lifetime_orders, lifetime_units, lifetime_customers, months_sold, first_sale_date, last_sale_date");
+  const { data: existingProducts } = await supabase.from("products").select("id, product_id");
   const productDbMap = new Map();
   for (const p of existingProducts || []) productDbMap.set(normalizeProductId(p.product_id), p);
 
@@ -125,72 +137,103 @@ async function importCSV(rows, onProgress) {
     const dateOnly = safeDateISO(parseDate(row["Date"]));
     const orderId = orderMap.get(`${shippedTo}|${dateOnly}`);
     const customerId = customerIdMap.get(shippedTo);
-    const { error } = await supabase.from("sales").insert({
-      order_id: orderId || null, customer_id: customerId || null,
-      product_id: row["Product ID"], product_name: row["Product Title"],
-      product_type_code: row["Product Type"], sale_date: safeDateISO(parseDate(row["Date"])),
-      quantity: parseInt(row["Quantity"]) || 1, royalty_rate: row["Royalty Rate"],
-      royalty_usd: parseRoyaltyUSD(row["Royalty (USD)"]), status: row["Status"] || "pending",
-      is_customized: row["Is Customized"] === "Yes", referred: row["Referred"],
-      shipped_to: shippedTo, store: row["Store"],
-    });
-    if (error && !error.message.includes("duplicate")) log.push(`⚠️ Sale error [${row["Product ID"]}]: ${error.message}`);
+    const orderItemId = row["Order Item ID"] || null;
+
+    const { error } = await supabase.from("sales").upsert({
+      order_item_id: orderItemId,
+      order_id: orderId || null,
+      customer_id: customerId || null,
+      product_id: row["Product ID"],
+      product_name: row["Product Title"],
+      product_type_code: row["Product Type"],
+      sale_date: safeDateISO(parseDate(row["Date"])),
+      quantity: parseInt(row["Quantity"]) || 1,
+      royalty_rate: row["Royalty Rate"],
+      royalty_usd: parseRoyaltyUSD(row["Royalty (USD)"]),
+      status: (row["Status"] || "pending").toLowerCase().trim(),
+      is_customized: row["Is Customized"] === "Yes",
+      referred: row["Referred"],
+      shipped_to: shippedTo,
+      store: row["Store"],
+    }, { onConflict: "order_item_id", ignoreDuplicates: true });
+
+    if (error) log.push(`⚠️ Sale error [${row["Order Item ID"]}]: ${error.message}`);
     else salesInserted++;
   }
 
+  // --- MÉTRICAS DE PRODUCTOS (recalculadas desde cero, no acumuladas) ---
   onProgress("Actualizando métricas de productos...", 75);
   for (const [normPid, pidRows] of productSalesMap.entries()) {
-    const activeRows = pidRows.filter((r) => r["Is Canceled"] !== "Yes" && r["Status"] !== "canceled");
+    const activeRows = pidRows.filter((r) => {
+      const status = (r["Status"] || "").toLowerCase().trim();
+      return status !== "canceled";
+    });
+
     const totalEarnings = activeRows.reduce((s, r) => s + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
     const totalUnits = activeRows.reduce((s, r) => s + parseInt(r["Quantity"] || 0), 0);
     const uniqueCustomers = new Set(activeRows.map((r) => r["Shipped To"])).size;
-    const monthSet = new Set(activeRows.map((r) => { const d = parseDate(r["Date"]); return `${d.getFullYear()}-${d.getMonth()}`; }));
+    const monthSet = new Set(activeRows.map((r) => {
+      const d = parseDate(r["Date"]);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    }));
     const monthsSold = monthSet.size;
-    const dates = activeRows.map((r) => parseDate(r["Date"])).filter(d => d && !isNaN(d.getTime()));
+    const dates = activeRows.map((r) => parseDate(r["Date"])).filter((d) => d && !isNaN(d.getTime()));
     const firstSale = dates.length ? safeDateISO(new Date(Math.min(...dates))) : null;
     const lastSale = dates.length ? safeDateISO(new Date(Math.max(...dates))) : null;
-    const uniqueOrders = new Set(activeRows.map((r) => { const d = safeDateISO(parseDate(r["Date"])); return `${r["Shipped To"]}|${d}`; })).size;
+    const uniqueOrders = new Set(activeRows.map((r) => {
+      const d = safeDateISO(parseDate(r["Date"]));
+      return `${r["Shipped To"]}|${d}`;
+    })).size;
     const repeatSeller = monthsSold > 1;
-    const highSignalSeller = uniqueCustomers > 1 && (monthsSold > 1 || repeatSeller);
+    const highSignalSeller = uniqueCustomers > 1 && monthsSold > 1;
+
     const existing = productDbMap.get(normPid);
     if (existing) {
       const { error } = await supabase.from("products").update({
-        lifetime_earnings: parseFloat(((existing.lifetime_earnings || 0) + totalEarnings).toFixed(4)),
-        lifetime_orders: (existing.lifetime_orders || 0) + uniqueOrders,
-        lifetime_units: (existing.lifetime_units || 0) + totalUnits,
-        lifetime_customers: Math.max(existing.lifetime_customers || 0, uniqueCustomers),
-        months_sold: Math.max(existing.months_sold || 0, monthsSold),
-        first_sale_date: existing.first_sale_date < firstSale ? existing.first_sale_date : firstSale,
-        last_sale_date: existing.last_sale_date > lastSale ? existing.last_sale_date : lastSale,
-        repeat_seller: Math.max(existing.months_sold || 0, monthsSold) > 1,
-        high_signal_seller: Math.max(existing.lifetime_customers || 0, uniqueCustomers) > 1 && Math.max(existing.months_sold || 0, monthsSold) > 1,
+        lifetime_earnings: parseFloat(totalEarnings.toFixed(4)),
+        lifetime_orders: uniqueOrders,
+        lifetime_units: totalUnits,
+        lifetime_customers: uniqueCustomers,
+        months_sold: monthsSold,
+        first_sale_date: firstSale,
+        last_sale_date: lastSale,
+        repeat_seller: repeatSeller,
+        high_signal_seller: highSignalSeller,
         updated_at: new Date().toISOString(),
       }).eq("id", existing.id);
       if (error) log.push(`⚠️ Product update error [${normPid}]: ${error.message}`);
       else productsUpdated++;
     } else {
       const { error } = await supabase.from("products").insert({
-        product_id: normPid, name: pidRows[0]["Product Title"],
-        is_new: false, is_evergreen: true,
+        product_id: normPid,
+        name: pidRows[0]["Product Title"],
+        is_new: false,
+        is_evergreen: true,
         lifetime_earnings: parseFloat(totalEarnings.toFixed(4)),
-        lifetime_orders: uniqueOrders, lifetime_units: totalUnits,
-        lifetime_customers: uniqueCustomers, months_sold: monthsSold,
-        first_sale_date: firstSale, last_sale_date: lastSale,
-        repeat_seller: repeatSeller, high_signal_seller: highSignalSeller,
+        lifetime_orders: uniqueOrders,
+        lifetime_units: totalUnits,
+        lifetime_customers: uniqueCustomers,
+        months_sold: monthsSold,
+        first_sale_date: firstSale,
+        last_sale_date: lastSale,
+        repeat_seller: repeatSeller,
+        high_signal_seller: highSignalSeller,
       });
       if (error) log.push(`⚠️ Product insert error [${normPid}]: ${error.message}`);
       else productsCreated++;
     }
   }
 
+  // --- TOTALES DE CLIENTES ---
   onProgress("Actualizando totales de clientes...", 90);
   for (const [shippedTo, customerId] of customerIdMap.entries()) {
     const customerRows = rows.filter((r) => r["Shipped To"] === shippedTo);
     const customerOrders = new Set(customerRows.map((r) => safeDateISO(parseDate(r["Date"])))).size;
     const totalSpent = customerRows.reduce((s, r) => s + parseRoyaltyUSD(r["Royalty (USD)"]), 0);
-    const dates = customerRows.map((r) => parseDate(r["Date"])).filter(d => d && !isNaN(d.getTime()));
+    const dates = customerRows.map((r) => parseDate(r["Date"])).filter((d) => d && !isNaN(d.getTime()));
     await supabase.from("customers").update({
-      total_orders: customerOrders, total_spent_usd: parseFloat(totalSpent.toFixed(2)),
+      total_orders: customerOrders,
+      total_spent_usd: parseFloat(totalSpent.toFixed(2)),
       first_order_date: dates.length ? safeDateISO(new Date(Math.min(...dates))) : null,
       last_order_date: dates.length ? safeDateISO(new Date(Math.max(...dates))) : null,
     }).eq("id", customerId);
@@ -224,18 +267,26 @@ export default function ImportarRoyalties() {
     } catch (err) { setError(err.message); setStatus("error"); }
   };
 
-  const reset = () => { setFile(null); setStatus("idle"); setProgress(0); setProgressMsg(""); setResult(null); setError(null); };
+  const reset = () => {
+    setFile(null); setStatus("idle"); setProgress(0);
+    setProgressMsg(""); setResult(null); setError(null);
+  };
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
       <h2 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "0.25rem" }}>Importar Royalties Zazzle</h2>
-      <p style={{ color: "#666", fontSize: "0.875rem", marginBottom: "1.5rem" }}>Royalty history CSV → base de datos</p>
+      <p style={{ color: "#666", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
+        Royalty history CSV → base de datos
+      </p>
 
       {status === "idle" && (
         <>
           <input type="file" accept=".csv" onChange={handleFile} style={{ marginBottom: "1rem", display: "block" }} />
           {file && (
-            <button onClick={handleImport} style={{ padding: "0.75rem 1.5rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: "0.95rem" }}>
+            <button
+              onClick={handleImport}
+              style={{ padding: "0.75rem 1.5rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: "0.95rem" }}
+            >
               Importar {file.name}
             </button>
           )}
@@ -253,10 +304,19 @@ export default function ImportarRoyalties() {
 
       {status === "done" && result && (
         <div style={{ background: "#f4faf4", border: "1px solid #c3e6c3", borderRadius: 8, padding: "1.25rem" }}>
-          <div style={{ fontWeight: 600, marginBottom: "1rem" }}>✅ Importación completa</div>
+          <div style={{ fontWeight: 600, marginBottom: "1rem" }}>Importación completa</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
-            {[["Ventas", result.salesInserted], ["Órdenes creadas", result.ordersCreated], ["Clientes nuevos", result.customersCreated], ["Productos creados", result.productsCreated], ["Productos actualizados", result.productsUpdated]].map(([label, val]) => (
-              <div key={label}><div style={{ fontSize: "1.5rem", fontWeight: 600 }}>{val}</div><div style={{ fontSize: "0.75rem", color: "#555" }}>{label}</div></div>
+            {[
+              ["Ventas", result.salesInserted],
+              ["Órdenes creadas", result.ordersCreated],
+              ["Clientes nuevos", result.customersCreated],
+              ["Productos creados", result.productsCreated],
+              ["Productos actualizados", result.productsUpdated],
+            ].map(([label, val]) => (
+              <div key={label}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 600 }}>{val}</div>
+                <div style={{ fontSize: "0.75rem", color: "#555" }}>{label}</div>
+              </div>
             ))}
           </div>
           {result.warnings.length > 0 && (
@@ -265,7 +325,9 @@ export default function ImportarRoyalties() {
               {result.warnings.map((w, i) => <p key={i} style={{ margin: "0.2rem 0" }}>{w}</p>)}
             </details>
           )}
-          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer", marginTop: "0.5rem" }}>Importar otro</button>
+          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer", marginTop: "0.5rem" }}>
+            Importar otro
+          </button>
         </div>
       )}
 
@@ -273,7 +335,9 @@ export default function ImportarRoyalties() {
         <div style={{ background: "#fdf4f4", border: "1px solid #e6c3c3", borderRadius: 8, padding: "1.25rem" }}>
           <div style={{ fontWeight: 600, color: "#c00", marginBottom: "0.5rem" }}>Error</div>
           <p style={{ fontSize: "0.875rem", color: "#660000" }}>{error}</p>
-          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer" }}>Reintentar</button>
+          <button onClick={reset} style={{ padding: "0.65rem 1rem", border: "1px solid #ddd", borderRadius: 6, cursor: "pointer" }}>
+            Reintentar
+          </button>
         </div>
       )}
     </div>
