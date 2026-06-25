@@ -1118,7 +1118,6 @@ const NAV = [
   { id:"sales-dashboard", label:"Sales Dashboard" },
   { id:"actions", label:"BS Actions" },
   { id:"importar-royalties", label:"Importar Royalties" },
-  { id:"sales-dashboard", label:"Sales Dashboard" },
   { id:"importar-referrals", label:"Importar Referrals" },
 
   { section:"Analisis" },
