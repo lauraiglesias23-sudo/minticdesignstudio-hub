@@ -750,6 +750,359 @@ function Reports({ products, actions, productTypes, niches }) {
     </div>
   );
 }
+function SalesDashboard({ showToast }) {
+  const [salesData, setSalesData] = useState([]);
+  const [totals, setTotals] = useState(null);
+  const [referrals, setReferrals] = useState({ total: 0, count: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [monthly, totalsRes, refRes] = await Promise.all([
+        supabase.rpc("get_monthly_sales"),
+        supabase
+          .from("sales")
+          .select("order_id, royalty_usd, customer_id")
+          .neq("status", "canceled"),
+        supabase.from("referrals").select("amount"),
+      ]);
+
+      // Calcular totales en cliente (simple, sin RPC)
+      const rows = totalsRes.data || [];
+      const orderIds = new Set(rows.map((r) => r.order_id));
+      const customerIds = new Set(rows.map((r) => r.customer_id));
+      const totalRevenue = rows.reduce((s, r) => s + Number(r.royalty_usd), 0);
+      setTotals({
+        orders: orderIds.size,
+        revenue: totalRevenue,
+        aov: orderIds.size ? totalRevenue / orderIds.size : 0,
+        customers: customerIds.size,
+      });
+
+      const refs = refRes.data || [];
+      setReferrals({
+        total: refs.reduce((s, r) => s + Number(r.amount || 0), 0),
+        count: refs.length,
+      });
+
+      // Construir monthly desde los mismos datos (sin RPC)
+      const byMonth = {};
+      rows.forEach((r) => {
+        if (!r.order_id) return; // seguridad
+        // sale_date no está en este select — hacemos query separado
+      });
+
+      // Query mensual directo
+      const { data: mData } = await supabase
+        .from("sales")
+        .select("sale_date, order_id, royalty_usd")
+        .neq("status", "canceled");
+
+      const monthMap = {};
+      (mData || []).forEach((r) => {
+        if (!r.sale_date) return;
+        const m = r.sale_date.slice(0, 7);
+        if (!monthMap[m]) monthMap[m] = { orders: new Set(), revenue: 0 };
+        monthMap[m].orders.add(r.order_id);
+        monthMap[m].revenue += Number(r.royalty_usd);
+      });
+      const built = Object.entries(monthMap)
+        .map(([month, d]) => ({
+          month,
+          orders: d.orders.size,
+          revenue: Math.round(d.revenue * 100) / 100,
+          aov: Math.round((d.revenue / d.orders.size) * 100) / 100,
+        }))
+        .sort((a, b) => b.month.localeCompare(a.month))
+        .slice(0, 12);
+      setSalesData(built);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  if (loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "60vh",
+          color: theme.muted,
+          fontSize: 14,
+        }}
+      >
+        Cargando ventas...
+      </div>
+    );
+
+  const maxRevenue = Math.max(...salesData.map((d) => d.revenue), 1);
+  const fmt = (n) => `$${Number(n).toFixed(2)}`;
+
+  // Mes anterior vs actual para delta
+  const current = salesData[0];
+  const prev = salesData[1];
+  const delta =
+    current && prev
+      ? ((current.revenue - prev.revenue) / prev.revenue) * 100
+      : null;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>
+          Sales Dashboard
+        </div>
+        <div style={{ fontSize: 13, color: theme.muted, marginTop: 4 }}>
+          Revenue, órdenes y AOV desde Zazzle
+        </div>
+      </div>
+
+      {/* KPIs principales */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4,1fr)",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          ["Revenue total", fmt(totals?.revenue || 0), null],
+          ["Órdenes", totals?.orders || 0, null],
+          [
+            "AOV",
+            fmt(totals?.aov || 0),
+            null,
+          ],
+          ["Clientes únicos", totals?.customers || 0, null],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: 20,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: theme.text }}>
+              {value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mes actual + Referrals */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            padding: 20,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+            Mes actual — {current?.month || "—"}
+          </div>
+          <div style={{ display: "flex", gap: 24 }}>
+            {[
+              ["Revenue", fmt(current?.revenue || 0)],
+              ["Órdenes", current?.orders || 0],
+              ["AOV", fmt(current?.aov || 0)],
+            ].map(([l, v]) => (
+              <div key={l}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: theme.accent }}>{v}</div>
+                <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          {delta !== null && (
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 12,
+                color: delta >= 0 ? theme.success : theme.danger,
+                fontWeight: 600,
+              }}
+            >
+              {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}% vs mes anterior
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            padding: 20,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+            Referrals (separado)
+          </div>
+          <div style={{ display: "flex", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: theme.medium }}>{fmt(referrals.total)}</div>
+              <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>Total acumulado</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>{referrals.count}</div>
+              <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>Transacciones</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, fontSize: 11, color: theme.muted }}>
+            No incluido en revenue principal
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico de barras mensual */}
+      <div
+        style={{
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 8,
+          padding: 20,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 16 }}>
+          Revenue por mes
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 8,
+            height: 120,
+          }}
+        >
+          {[...salesData].reverse().map((d) => (
+            <div
+              key={d.month}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>
+                {fmt(d.revenue)}
+              </div>
+              <div
+                style={{
+                  width: "100%",
+                  background: theme.accent,
+                  borderRadius: "3px 3px 0 0",
+                  height: `${(d.revenue / maxRevenue) * 88}px`,
+                  minHeight: 4,
+                  opacity: d.month === current?.month ? 1 : 0.55,
+                }}
+              />
+              <div style={{ fontSize: 9, color: theme.muted }}>
+                {d.month.slice(5)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabla mensual */}
+      <div
+        style={{
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 8,
+          padding: 20,
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+          Histórico mensual
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {["Mes", "Órdenes", "Revenue", "AOV"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: theme.muted,
+                      textTransform: "uppercase",
+                      borderBottom: `1px solid ${theme.border}`,
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {salesData.map((d) => (
+                <tr
+                  key={d.month}
+                  style={{
+                    background:
+                      d.month === current?.month
+                        ? "rgba(45,106,79,0.04)"
+                        : "transparent",
+                  }}
+                >
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      borderBottom: `1px solid ${theme.border}`,
+                      fontWeight: d.month === current?.month ? 700 : 400,
+                      color: theme.text,
+                    }}
+                  >
+                    {d.month}
+                    {d.month === current?.month && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10,
+                          color: theme.accent,
+                          fontWeight: 600,
+                        }}
+                      >
+                        actual
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: "10px 12px", borderBottom: `1px solid ${theme.border}`, color: theme.text }}>{d.orders}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: `1px solid ${theme.border}`, fontWeight: 600, color: theme.accent }}>{fmt(d.revenue)}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: `1px solid ${theme.border}`, color: theme.muted }}>{fmt(d.aov)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const NAV = [
   { section:"Principal" },
@@ -762,8 +1115,10 @@ const NAV = [
   { id:"types", label:"Product Types" },
   { id:"niches", label:"Niches" },
   { section:"Ventas" },
+  { id:"sales-dashboard", label:"Sales Dashboard" },
   { id:"actions", label:"BS Actions" },
   { id:"importar-royalties", label:"Importar Royalties" },
+  { id:"sales-dashboard", label:"Sales Dashboard" },
   { id:"importar-referrals", label:"Importar Referrals" },
 
   { section:"Analisis" },
@@ -854,6 +1209,8 @@ export default function App() {
               {page==="import"&&<ImportCSV {...common}/>}
               {page==="importar-royalties"&&<ImportarRoyalties showToast={showToast}/>}
             {page==="importar-referrals"&&<ImportarReferrals showToast={showToast}/>}
+            {page==="sales-dashboard"&&<SalesDashboard showToast={showToast}/>}
+
 
               {page==="types"&&<ProductTypes {...common}/>}
               {page==="niches"&&<Niches {...common}/>}
