@@ -818,7 +818,9 @@ function SalesDashboard({ showToast }) {
 
       const monthMap = {};
       (mRes.data || []).forEach((r) => {
+        if (!r.sale_date) return;
         const m = r.sale_date.slice(0, 7);
+        if (!monthMap[m]) monthMap[m] = { orders: new Set(), revenue: 0 };
         monthMap[m].orders.add(r.order_id);
         monthMap[m].revenue += Number(r.royalty_usd);
       });
