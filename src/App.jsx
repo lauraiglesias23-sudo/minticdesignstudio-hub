@@ -319,20 +319,20 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
             </div>
             <div style={{marginBottom:20}}><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={editProduct.notes||""} onChange={e=>setEditProduct({...editProduct,notes:e.target.value})}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
-  <div><label style={lbl}>Buildout Phase</label><select style={inp} value={form.buildout_phase} onChange={e=>setForm({...form,buildout_phase:e.target.value})}>
+  <div><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Buildout Phase</label><select style={inp} value={editProduct.buildout_phase||""} onChange={e=>setEditProduct({...editProduct,buildout_phase:e.target.value})}>
     <option value="">— Seleccionar —</option>
     <option value="Phase 1">Phase 1 — Variations</option>
     <option value="Phase 2">Phase 2 — Product Expansion</option>
     <option value="Phase 3">Phase 3 — Niche Expansion</option>
     <option value="Phase 4">Phase 4 — Ecosystem Expansion</option>
   </select></div>
-  <div><label style={lbl}>Asset Status</label><select style={inp} value={form.asset_status} onChange={e=>setForm({...form,asset_status:e.target.value})}>
+  <div><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Asset Status</label><select style={inp} value={editProduct.asset_status||""} onChange={e=>setEditProduct({...editProduct,asset_status:e.target.value})}>
     <option value="">— Seleccionar —</option>
     <option value="Promote">Promote</option>
     <option value="Passive">Passive</option>
     <option value="Seed">Seed</option>
   </select></div>
-  <div><label style={lbl}>Views</label><input style={inp} type="number" min="0" value={form.views} onChange={e=>setForm({...form,views:e.target.value})} placeholder="0"/></div>
+  <div><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Views</label><input style={inp} type="number" min="0" value={editProduct.views||""} onChange={e=>setEditProduct({...editProduct,views:e.target.value})} placeholder="0"/></div>
 </div>
 <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={()=>setEditProduct(null)} style={{padding:"8px 16px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:6,color:theme.text,fontSize:13,cursor:"pointer"}}>Cancelar</button>
