@@ -1218,7 +1218,7 @@ function BestSellerAnalysis({ showToast }) {
       if (to) salesQ = salesQ.lte('sale_date', to);
       const [{ data: salesRaw }, { data: prodsRaw }, { data: actionsRaw }] = await Promise.all([
         salesQ,
-        supabase.from('products').select('id, product_id, name, high_signal_seller, repeat_seller, lifetime_orders'),
+        supabase.from('products').select('id, product_id, name, url, high_signal_seller, repeat_seller, lifetime_orders')
         supabase.from('best_seller_actions').select('product_id, product_name, date, action, buildout_phase, asset_status').order('date', { ascending: false }),
       ]);
       const sales = salesRaw || [];
@@ -1238,7 +1238,7 @@ function BestSellerAnalysis({ showToast }) {
       const ranked = Object.entries(agg).map(([stripped, d]) => {
         const prod = prodByStripped[stripped] || null;
         const prodActions = actions.filter((a) => (a.product_id || '').replace(/-/g, '') === stripped);
-        const rawId = prod ? (prod.product_id || stripped) : stripped; const zazzleId = rawId.replace(/-/g, ''); return { stripped, zazzleId, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
+        const rawId = prod ? (prod.product_id || stripped) : stripped; const zazzleId = rawId.replace(/-/g, ''); const productUrl = prod ? (prod.url || '') : ''; return { stripped, zazzleId, productUrl, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
       });
       const priorityA = ranked.filter((r) => r.highSignal && r.repeat);
       setData({ byRevenue: [...ranked].sort((a, b) => b.revenue - a.revenue).slice(0, 15), byUnits: [...ranked].sort((a, b) => b.units - a.units).slice(0, 15), byCustomers: [...ranked].sort((a, b) => b.customers - a.customers).slice(0, 15), highSignal: ranked.filter((r) => r.highSignal).sort((a, b) => b.revenue - a.revenue), repeat: ranked.filter((r) => r.repeat).sort((a, b) => b.revenue - a.revenue), priorityA: priorityA.sort((a, b) => b.revenue - a.revenue), allByRevenue: [...ranked].sort((a, b) => b.revenue - a.revenue), allByUnits: [...ranked].sort((a, b) => b.units - a.units), allByCustomers: [...ranked].sort((a, b) => b.customers - a.customers), totalProducts: ranked.length });
