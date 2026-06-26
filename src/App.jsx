@@ -534,21 +534,21 @@ function BestSellerActions({ actions, onRefresh, showToast }) {
             <div style={{marginBottom:12}}><label style={lbl}>Proximo paso</label><input style={inp} value={form.next_step} onChange={e=>setForm({...form,next_step:e.target.value})}/></div>
             <div style={{marginBottom:12}}><label style={lbl}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
-  <div><label style={lbl}>Buildout Phase</label><select style={inp} value={form.buildout_phase} onChange={e=>setForm({...form,buildout_phase:e.target.value})}>
-    <option value="">— Seleccionar —</option>
-    <option value="Phase 1">Phase 1 — Variations</option>
-    <option value="Phase 2">Phase 2 — Product Expansion</option>
-    <option value="Phase 3">Phase 3 — Niche Expansion</option>
-    <option value="Phase 4">Phase 4 — Ecosystem</option>
-  </select></div>
-  <div><label style={lbl}>Asset Status</label><select style={inp} value={form.asset_status} onChange={e=>setForm({...form,asset_status:e.target.value})}>
-    <option value="">— Seleccionar —</option>
-    <option value="Promote">Promote</option>
-    <option value="Passive">Passive</option>
-    <option value="Seed">Seed</option>
-  </select></div>
-  <div><label style={lbl}>Views</label><input style={inp} type="number" min="0" value={form.views} onChange={e=>setForm({...form,views:e.target.value})} placeholder="0"/></div>
-</div>
+              <div><label style={lbl}>Buildout Phase</label><select style={inp} value={form.buildout_phase} onChange={e=>setForm({...form,buildout_phase:e.target.value})}>
+                <option value="">— Seleccionar —</option>
+                <option value="Phase 1">Phase 1 — Variations</option>
+                <option value="Phase 2">Phase 2 — Product Expansion</option>
+                <option value="Phase 3">Phase 3 — Niche Expansion</option>
+                <option value="Phase 4">Phase 4 — Ecosystem</option>
+              </select></div>
+              <div><label style={lbl}>Asset Status</label><select style={inp} value={form.asset_status} onChange={e=>setForm({...form,asset_status:e.target.value})}>
+                <option value="">— Seleccionar —</option>
+                <option value="Promote">Promote</option>
+                <option value="Passive">Passive</option>
+                <option value="Seed">Seed</option>
+              </select></div>
+              <div><label style={lbl}>Views</label><input style={inp} type="number" min="0" value={form.views} onChange={e=>setForm({...form,views:e.target.value})} placeholder="0"/></div>
+            </div>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={()=>setShowAdd(false)} style={{padding:"8px 16px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:6,color:theme.text,fontSize:13,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleAdd} disabled={saving} style={{padding:"8px 16px",background:theme.accent,border:"none",borderRadius:6,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
