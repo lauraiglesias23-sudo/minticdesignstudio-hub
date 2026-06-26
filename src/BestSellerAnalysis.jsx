@@ -75,7 +75,7 @@ function BestSellerAnalysis({ showToast }) {
     load();
   }, [preset, customFrom, customTo]);
 
-  const fmtM = (n) => { const v = Number(n).toFixed(2); return '$' + v; };
+  const fmtM = (n) => { const dSign = String.fromCharCode(36); return dSign + Number(n).toFixed(2); };
   const Bdg = ({ label, color, bg }) => <span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, color, background: bg, marginLeft: 4 }}>{label}</span>;
   const tabs = [{ id: 'revenue', label: 'Top Revenue' }, { id: 'units', label: 'Top Unidades' }, { id: 'customers', label: 'Top Clientes' }, { id: 'signals', label: 'Signals' }];
   const colCfg = { revenue: { label: 'Revenue', key: 'revenue', fmt: fmtM }, units: { label: 'Unidades', key: 'units', fmt: (n) => n }, customers: { label: 'Clientes', key: 'customers', fmt: (n) => n } };
