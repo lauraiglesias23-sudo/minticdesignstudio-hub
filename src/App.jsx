@@ -765,7 +765,7 @@ function SalesDashboard({ showToast }) {
           .from("sales")
           .select("order_id, royalty_usd, customer_id")
           .neq("status", "canceled"),
-        supabase.from("referrals").select("amount"),
+        supabase.from("referrals").select("referral_amount_usd"),
       ]);
 
       // Calcular totales en cliente (simple, sin RPC)
@@ -782,7 +782,7 @@ function SalesDashboard({ showToast }) {
 
       const refs = refRes.data || [];
       setReferrals({
-        total: refs.reduce((s, r) => s + Number(r.amount || 0), 0),
+        total: refs.reduce((s, r) => s + Number(r.referral_amount_usd || 0), 0),
         count: refs.length,
       });
 
