@@ -1602,3 +1602,357 @@ export default function App() {
     </div>
   );
 }
+ + Number(n).toFixed(2);
+  { section:"Principal" },
+  { id:"dashboard", label:"Dashboard" },
+  { id:"quickadd", label:"Quick Add" },
+  { section:"Inventario" },
+  { id:"products", label:"Product Master" },
+  { id:"import", label:"Importar CSV" },
+  { section:"Configuracion" },
+  { id:"types", label:"Product Types" },
+  { id:"niches", label:"Niches" },
+  { section:"Ventas" },
+  { id:"sales-dashboard", label:"Sales Dashboard" },
+  { id:"actions", label:"BS Actions" },
+  { id:"importar-royalties", label:"Importar Royalties" },
+  { id:"importar-referrals", label:"Importar Referrals" },
+
+  { section:"Analisis" },
+  { id:"best-seller", label:"Best Seller Analysis" },
+  { id:"analytics", label:"Analytics" },
+  { id:"reports", label:"Reportes" },
+];
+
+function getInitialPage() {
+  if (typeof window === "undefined") return "dashboard";
+  const path = window.location.pathname.replace(/^\//, "");
+  if (!path) return "dashboard";
+  return path === "importar-royalties" ? "importar-royalties" : "dashboard";
+}
+
+export default function App() {
+  const [page, setPage] = useState(getInitialPage);
+  const [products, setProducts] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
+  const [niches, setNiches] = useState([]);
+  const [nicheCategories, setNicheCategories] = useState([]);
+  const [actions, setActions] = useState([]);
+  const [inventoryTotal, setInventoryTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type="success") => setToast({msg,type});
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [p,pt,n,nc,a,snap,newProds] = await Promise.all([
+      supabase.from("products").select("*").order("created_date",{ascending:false}),
+      supabase.from("product_types").select("*").order("name"),
+      supabase.from("niches").select("*").order("name"),
+      supabase.from("niche_categories").select("*").order("name"),
+      supabase.from("best_seller_actions").select("*").order("date",{ascending:false}),
+      supabase.from("inventory_snapshots").select("total_products").eq("snapshot_date","2026-06-22").eq("snapshot_type","niche"),
+      supabase.from("products").select("id",{count:"exact",head:true}).gt("created_date","2026-06-22"),
+    ]);
+    setProducts(p.data||[]); setProductTypes(pt.data||[]); setNiches(n.data||[]); setNicheCategories(nc.data||[]); setActions(a.data||[]);
+    const snapTotal = (snap.data||[]).reduce((acc,r)=>acc+r.total_products,0);
+    const newCount = newProds.count||0;
+    setInventoryTotal(snapTotal + newCount);
+    setLoading(false);
+  }, []);
+  useEffect(()=>{ loadAll(); },[loadAll]);
+  useEffect(() => {
+    const syncPageFromPath = () => {
+      const path = window.location.pathname.replace(/^\//, "");
+      if (path === "importar-royalties") setPage("importar-royalties");
+      else if (path === "") setPage("dashboard");
+    };
+    syncPageFromPath();
+    window.addEventListener("popstate", syncPageFromPath);
+    return () => window.removeEventListener("popstate", syncPageFromPath);
+  }, []);
+
+  const common = { products, productTypes, niches, nicheCategories, actions, onRefresh:loadAll, showToast, inventoryTotal };
+
+  const handleNavigate = (nextPage) => {
+    setPage(nextPage);
+    const path = nextPage === "importar-royalties" ? "/importar-royalties" : "/";
+    window.history.pushState({}, "", path);
+  };
+
+  return (
+    <div style={{display:"flex",minHeight:"100vh",background:theme.bg,color:theme.text,fontFamily:"Inter, system-ui, sans-serif"}}>
+      <aside style={{width:210,minWidth:210,background:theme.surface,borderRight:`1px solid ${theme.border}`,padding:"24px 0",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh"}}>
+        <div style={{padding:"0 20px 20px",borderBottom:`1px solid ${theme.border}`}}>
+          <div style={{fontSize:13,fontWeight:700,color:theme.accent,letterSpacing:"0.06em",textTransform:"uppercase"}}>Mintic Hub</div>
+          <div style={{fontSize:11,color:theme.muted,marginTop:2}}>Production Manager</div>
+        </div>
+        <nav style={{flex:1,padding:"8px 0",overflowY:"auto"}}>
+          {NAV.map((item,i)=>
+            item.section
+              ? <div key={i} style={{padding:"20px 20px 4px",fontSize:12,fontWeight:700,color:theme.muted,letterSpacing:"0.1em",textTransform:"uppercase",borderTop:`1px solid ${theme.border}`}}>{item.section}</div>
+              : <div key={item.id} onClick={()=>handleNavigate(item.id)} style={{display:"flex",alignItems:"center",padding:"8px 20px",fontSize:13,color:page===item.id?theme.accent:theme.muted,cursor:"pointer",background:page===item.id?"rgba(45,106,79,0.07)":"transparent",borderLeft:`2px solid ${page===item.id?theme.accent:"transparent"}`,fontWeight:page===item.id?600:400}}>
+                  {item.label}
+                </div>
+          )}
+        </nav>
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${theme.border}`,fontSize:11,color:theme.muted}}>{inventoryTotal} productos</div>
+      </aside>
+      <main style={{flex:1,padding:"28px 32px",overflowY:"auto",minWidth:0,background:theme.bg}}>
+        {loading
+          ? <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",color:theme.muted,fontSize:14}}>Cargando datos...</div>
+          : <>
+              {page==="dashboard"&&<Dashboard {...common}/>}
+              {page==="quickadd"&&<QuickAdd {...common} onSave={loadAll}/>}
+              {page==="products"&&<ProductMaster {...common}/>}
+              {page==="import"&&<ImportCSV {...common}/>}
+              {page==="importar-royalties"&&<ImportarRoyalties showToast={showToast}/>}
+            {page==="importar-referrals"&&<ImportarReferrals showToast={showToast}/>}
+            {page==="sales-dashboard"&&<SalesDashboard showToast={showToast}/>}
+
+
+              {page==="types"&&<ProductTypes {...common}/>}
+              {page==="niches"&&<Niches {...common}/>}
+              {page==="actions"&&<BestSellerActions {...common}/>}
+              {page==="best-seller"&&<BestSellerAnalysis showToast={showToast}/>}
+              {page==="analytics"&&<Analytics {...common}/>}
+              {page==="reports"&&<Reports {...common}/>}
+            </>
+        }
+      </main>
+      {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
+    </div>
+  );
+}
+ + Number(n).toFixed(2);
+  const badge = (label, color, bg) => React.createElement('span', { style: { display: 'inline-block', padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, color, background: bg, marginLeft: 4 } }, label);
+  const tabs = [{ id: 'revenue', label: 'Top Revenue' }, { id: 'units', label: 'Top Unidades' }, { id: 'customers', label: 'Top Clientes' }, { id: 'signals', label: 'Signals' }];
+  const tableData = { revenue: data?.byRevenue || [], units: data?.byUnits || [], customers: data?.byCustomers || [] };
+  const col = { revenue: { label: 'Revenue', key: 'revenue', fmt: fmt }, units: { label: 'Unidades', key: 'units', fmt: (n) => n }, customers: { label: 'Clientes', key: 'customers', fmt: (n) => n } };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>Best Seller Analysis</div>
+          <div style={{ fontSize: 13, color: theme.muted, marginTop: 4 }}>¿Qué debo multiplicar?</div>
+        </div>
+        <DateRangeSelector preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      </div>
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '40vh', color: theme.muted, fontSize: 14 }}>Cargando...</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 20 }}>
+            {[['Selling Products', data.totalProducts, theme.text], ['Priority A', data.priorityA.length, theme.danger], ['High Signal', data.highSignal.length, theme.accent], ['Repeat Sellers', data.repeat.length, theme.medium]].map(([label, value, color]) => (
+              <div key={label} style={{ background: theme.surface, border: '1px solid ' + theme.border, borderRadius: 8, padding: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{label}</div>
+                <div style={{ fontSize: 32, fontWeight: 700, color }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: theme.surface, padding: 4, borderRadius: 6, width: 'fit-content', border: '1px solid ' + theme.border }}>
+            {tabs.map((t) => (<div key={t.id} onClick={() => setTab(t.id)} style={{ padding: '6px 14px', borderRadius: 5, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: tab === t.id ? theme.accent : 'transparent', color: tab === t.id ? '#fff' : theme.muted }}>{t.label}</div>))}
+          </div>
+          {tab !== 'signals' && (
+            <div style={{ background: theme.surface, border: '1px solid ' + theme.border, borderRadius: 8, padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', marginBottom: 12 }}>Top 15 — {col[tab].label}</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead><tr>{['#', 'Producto', col[tab].label, 'Revenue', 'Clientes', 'Señales'].map((h) => (<th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', borderBottom: '1px solid ' + theme.border, whiteSpace: 'nowrap' }}>{h}</th>))}</tr></thead>
+                  <tbody>
+                    {tableData[tab].map((r, i) => (
+                      <tr key={r.stripped} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)' }}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted, fontWeight: 700, fontSize: 12 }}>{i + 1}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: theme.text }}>{r.name}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, fontWeight: 700, color: theme.accent }}>{col[tab].fmt(r[col[tab].key])}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: tab === 'revenue' ? theme.muted : theme.accent, fontWeight: tab === 'revenue' ? 400 : 600 }}>{tab === 'revenue' ? '—' : fmt(r.revenue)}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted }}>{r.customers}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border }}>
+                          {r.highSignal && r.repeat && badge('Priority A', '#fff', theme.danger)}
+                          {r.highSignal && !r.repeat && badge('High Signal', theme.accent, 'rgba(45,106,79,0.12)')}
+                          {r.repeat && !r.highSignal && badge('Repeat', theme.medium, 'rgba(181,130,10,0.12)')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {tab === 'signals' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ background: theme.surface, border: '1px solid ' + theme.border, borderRadius: 8, padding: 20, gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase' }}>Priority A</div>
+                  <span style={{ padding: '1px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#fff', background: theme.danger }}>{data.priorityA.length} productos</span>
+                </div>
+                {data.priorityA.length === 0 ? (
+                  <div style={{ color: theme.muted, fontSize: 13 }}>Ningún producto clasifica como Priority A (High Signal + Repeat) en este período.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead><tr>{['Producto', 'Revenue', 'Clientes', 'Órdenes', 'Acciones BS'].map((h) => (<th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', borderBottom: '1px solid ' + theme.border }}>{h}</th>))}</tr></thead>
+                      <tbody>
+                        {data.priorityA.map((r) => (
+                          <tr key={r.stripped}>
+                            <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: theme.text }}>{r.name}</td>
+                            <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, fontWeight: 700, color: theme.accent }}>{fmt(r.revenue)}</td>
+                            <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted }}>{r.customers}</td>
+                            <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted }}>{r.orders}</td>
+                            <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border }}>
+                              {r.actions.length > 0 ? (<div><div style={{ fontSize: 11, color: theme.accent, fontWeight: 600 }}>{r.actions.length} registradas</div><div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>Última: {r.actions[0].date} — {(r.actions[0].action || '').slice(0, 40)}{(r.actions[0].action || '').length > 40 ? '…' : ''}</div></div>) : (<span style={{ fontSize: 11, color: theme.muted }}>Sin acciones</span>)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div style={{ background: theme.surface, border: '1px solid ' + theme.border, borderRadius: 8, padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase' }}>High Signal Sellers</div>
+                  <span style={{ padding: '1px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: theme.accent, background: 'rgba(45,106,79,0.12)' }}>{data.highSignal.length}</span>
+                </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {data.highSignal.map((r) => (<div key={r.stripped} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid ' + theme.border, gap: 8 }}><div style={{ flex: 1, overflow: 'hidden' }}><div style={{ fontSize: 12, fontWeight: 500, color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>{r.repeat && <div style={{ fontSize: 10, color: theme.medium, marginTop: 1 }}>+ Repeat</div>}</div><div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><div style={{ fontSize: 13, fontWeight: 700, color: theme.accent }}>{fmt(r.revenue)}</div><div style={{ fontSize: 10, color: theme.muted }}>{r.customers} clientes</div></div></div>))}
+                  {data.highSignal.length === 0 && <div style={{ color: theme.muted, fontSize: 12 }}>Sin High Signal Sellers en este período.</div>}
+                </div>
+              </div>
+              <div style={{ background: theme.surface, border: '1px solid ' + theme.border, borderRadius: 8, padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase' }}>Repeat Sellers</div>
+                  <span style={{ padding: '1px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: theme.medium, background: 'rgba(181,130,10,0.12)' }}>{data.repeat.length}</span>
+                </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {data.repeat.map((r) => (<div key={r.stripped} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid ' + theme.border, gap: 8 }}><div style={{ flex: 1, overflow: 'hidden' }}><div style={{ fontSize: 12, fontWeight: 500, color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>{r.highSignal && <div style={{ fontSize: 10, color: theme.accent, marginTop: 1 }}>+ High Signal</div>}</div><div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><div style={{ fontSize: 13, fontWeight: 700, color: theme.accent }}>{fmt(r.revenue)}</div><div style={{ fontSize: 10, color: theme.muted }}>{r.orders} órdenes</div></div></div>))}
+                  {data.repeat.length === 0 && <div style={{ color: theme.muted, fontSize: 12 }}>Sin Repeat Sellers en este período.</div>}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const NAV = [
+  { section:"Principal" },
+  { id:"dashboard", label:"Dashboard" },
+  { id:"quickadd", label:"Quick Add" },
+  { section:"Inventario" },
+  { id:"products", label:"Product Master" },
+  { id:"import", label:"Importar CSV" },
+  { section:"Configuracion" },
+  { id:"types", label:"Product Types" },
+  { id:"niches", label:"Niches" },
+  { section:"Ventas" },
+  { id:"sales-dashboard", label:"Sales Dashboard" },
+  { id:"actions", label:"BS Actions" },
+  { id:"importar-royalties", label:"Importar Royalties" },
+  { id:"importar-referrals", label:"Importar Referrals" },
+
+  { section:"Analisis" },
+  { id:"analytics", label:"Analytics" },
+  { id:"reports", label:"Reportes" },
+];
+
+function getInitialPage() {
+  if (typeof window === "undefined") return "dashboard";
+  const path = window.location.pathname.replace(/^\//, "");
+  if (!path) return "dashboard";
+  return path === "importar-royalties" ? "importar-royalties" : "dashboard";
+}
+
+export default function App() {
+  const [page, setPage] = useState(getInitialPage);
+  const [products, setProducts] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
+  const [niches, setNiches] = useState([]);
+  const [nicheCategories, setNicheCategories] = useState([]);
+  const [actions, setActions] = useState([]);
+  const [inventoryTotal, setInventoryTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type="success") => setToast({msg,type});
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [p,pt,n,nc,a,snap,newProds] = await Promise.all([
+      supabase.from("products").select("*").order("created_date",{ascending:false}),
+      supabase.from("product_types").select("*").order("name"),
+      supabase.from("niches").select("*").order("name"),
+      supabase.from("niche_categories").select("*").order("name"),
+      supabase.from("best_seller_actions").select("*").order("date",{ascending:false}),
+      supabase.from("inventory_snapshots").select("total_products").eq("snapshot_date","2026-06-22").eq("snapshot_type","niche"),
+      supabase.from("products").select("id",{count:"exact",head:true}).gt("created_date","2026-06-22"),
+    ]);
+    setProducts(p.data||[]); setProductTypes(pt.data||[]); setNiches(n.data||[]); setNicheCategories(nc.data||[]); setActions(a.data||[]);
+    const snapTotal = (snap.data||[]).reduce((acc,r)=>acc+r.total_products,0);
+    const newCount = newProds.count||0;
+    setInventoryTotal(snapTotal + newCount);
+    setLoading(false);
+  }, []);
+  useEffect(()=>{ loadAll(); },[loadAll]);
+  useEffect(() => {
+    const syncPageFromPath = () => {
+      const path = window.location.pathname.replace(/^\//, "");
+      if (path === "importar-royalties") setPage("importar-royalties");
+      else if (path === "") setPage("dashboard");
+    };
+    syncPageFromPath();
+    window.addEventListener("popstate", syncPageFromPath);
+    return () => window.removeEventListener("popstate", syncPageFromPath);
+  }, []);
+
+  const common = { products, productTypes, niches, nicheCategories, actions, onRefresh:loadAll, showToast, inventoryTotal };
+
+  const handleNavigate = (nextPage) => {
+    setPage(nextPage);
+    const path = nextPage === "importar-royalties" ? "/importar-royalties" : "/";
+    window.history.pushState({}, "", path);
+  };
+
+  return (
+    <div style={{display:"flex",minHeight:"100vh",background:theme.bg,color:theme.text,fontFamily:"Inter, system-ui, sans-serif"}}>
+      <aside style={{width:210,minWidth:210,background:theme.surface,borderRight:`1px solid ${theme.border}`,padding:"24px 0",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh"}}>
+        <div style={{padding:"0 20px 20px",borderBottom:`1px solid ${theme.border}`}}>
+          <div style={{fontSize:13,fontWeight:700,color:theme.accent,letterSpacing:"0.06em",textTransform:"uppercase"}}>Mintic Hub</div>
+          <div style={{fontSize:11,color:theme.muted,marginTop:2}}>Production Manager</div>
+        </div>
+        <nav style={{flex:1,padding:"8px 0",overflowY:"auto"}}>
+          {NAV.map((item,i)=>
+            item.section
+              ? <div key={i} style={{padding:"20px 20px 4px",fontSize:12,fontWeight:700,color:theme.muted,letterSpacing:"0.1em",textTransform:"uppercase",borderTop:`1px solid ${theme.border}`}}>{item.section}</div>
+              : <div key={item.id} onClick={()=>handleNavigate(item.id)} style={{display:"flex",alignItems:"center",padding:"8px 20px",fontSize:13,color:page===item.id?theme.accent:theme.muted,cursor:"pointer",background:page===item.id?"rgba(45,106,79,0.07)":"transparent",borderLeft:`2px solid ${page===item.id?theme.accent:"transparent"}`,fontWeight:page===item.id?600:400}}>
+                  {item.label}
+                </div>
+          )}
+        </nav>
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${theme.border}`,fontSize:11,color:theme.muted}}>{inventoryTotal} productos</div>
+      </aside>
+      <main style={{flex:1,padding:"28px 32px",overflowY:"auto",minWidth:0,background:theme.bg}}>
+        {loading
+          ? <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",color:theme.muted,fontSize:14}}>Cargando datos...</div>
+          : <>
+              {page==="dashboard"&&<Dashboard {...common}/>}
+              {page==="quickadd"&&<QuickAdd {...common} onSave={loadAll}/>}
+              {page==="products"&&<ProductMaster {...common}/>}
+              {page==="import"&&<ImportCSV {...common}/>}
+              {page==="importar-royalties"&&<ImportarRoyalties showToast={showToast}/>}
+            {page==="importar-referrals"&&<ImportarReferrals showToast={showToast}/>}
+            {page==="sales-dashboard"&&<SalesDashboard showToast={showToast}/>}
+
+
+              {page==="types"&&<ProductTypes {...common}/>}
+              {page==="niches"&&<Niches {...common}/>}
+              {page==="actions"&&<BestSellerActions {...common}/>}
+              {page==="analytics"&&<Analytics {...common}/>}
+              {page==="reports"&&<Reports {...common}/>}
+            </>
+        }
+      </main>
+      {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
+    </div>
+  );
+}
