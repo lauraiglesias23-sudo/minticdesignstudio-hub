@@ -836,7 +836,8 @@ function SalesDashboard({ showToast }) {
       setSalesData(built);
 
       const prods = prodRes.data || [];
-      const total = prods.length;
+      const INVENTORY_TOTAL = 3743; // baseline 22/6/26 (3741) + 2 manuales
+      const total = INVENTORY_TOTAL;
       const selling = prods.filter((p) => Number(p.lifetime_orders) > 0).length;
       const highSignal = prods.filter((p) => p.high_signal_seller).length;
       const repeatSellers = prods.filter((p) => p.repeat_seller).length;
