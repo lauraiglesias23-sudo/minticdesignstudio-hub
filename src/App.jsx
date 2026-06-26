@@ -1201,37 +1201,6 @@ function DateRangeSelector({ preset, setPreset, customFrom, setCustomFrom, custo
   );
 }
 
-function getDateRange(preset, customFrom, customTo) {
-  const now = new Date();
-  const fmtD = (d) => d.toISOString().split('T')[0];
-  if (preset === 'all') return { from: null, to: null };
-  if (preset === 'month') { const d = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); return { from: fmtD(d), to: fmtD(now) }; }
-  if (preset === '3m') { const d = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); return { from: fmtD(d), to: fmtD(now) }; }
-  if (preset === 'custom') return { from: customFrom || null, to: customTo || null };
-  return { from: null, to: null };
-}
-
-function DateRangeSelector({ preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo }) {
-  const inp = { padding: '6px 10px', background: theme.bg, border: '1px solid ' + theme.border, borderRadius: 6, color: theme.text, fontSize: 12, outline: 'none' };
-  const presets = [{ id: 'all', label: 'All Time' }, { id: 'month', label: 'Last Month' }, { id: '3m', label: 'Last 3M' }, { id: 'custom', label: 'Custom' }];
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', gap: 2, background: theme.surface, padding: 3, borderRadius: 6, border: '1px solid ' + theme.border }}>
-        {presets.map((p) => (
-          <div key={p.id} onClick={() => setPreset(p.id)} style={{ padding: '5px 12px', borderRadius: 5, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: preset === p.id ? theme.accent : 'transparent', color: preset === p.id ? '#fff' : theme.muted, whiteSpace: 'nowrap' }}>{p.label}</div>
-        ))}
-      </div>
-      {preset === 'custom' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="date" style={inp} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-          <span style={{ color: theme.muted, fontSize: 12 }}>to</span>
-          <input type="date" style={inp} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function BestSellerAnalysis({ showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
