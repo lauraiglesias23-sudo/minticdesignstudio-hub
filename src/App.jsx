@@ -787,20 +787,18 @@ function SalesDashboard({ showToast }) {
   const [totals, setTotals] = useState(null);
   const [referrals, setReferrals] = useState({ total: 0, count: 0 });
   const [loading, setLoading] = useState(true);
-
+  const [productStats, setProductStats] = useState(null);
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [monthly, totalsRes, refRes] = await Promise.all([
-        supabase.rpc("get_monthly_sales"),
-        supabase
-          .from("sales")
-          .select("order_id, royalty_usd, customer_id")
-          .neq("status", "canceled"),
-        supabase.from("referrals").select("referral_amount_usd"),
+
+      const [totalsRes, refRes, mRes, prodRes] = await Promise.all([
+        supabase.from('sales').select('order_id, royalty_usd, customer_id').neq('status', 'canceled'),
+        supabase.from('referrals').select('referral_amount_usd'),
+        supabase.from('sales').select('sale_date, order_id, royalty_usd').neq('status', 'canceled'),
+        supabase.from('products').select('lifetime_orders, high_signal_seller, repeat_seller'),
       ]);
 
-      // Calcular totales en cliente (simple, sin RPC)
       const rows = totalsRes.data || [];
       const orderIds = new Set(rows.map((r) => r.order_id));
       const customerIds = new Set(rows.map((r) => r.customer_id));
@@ -818,24 +816,9 @@ function SalesDashboard({ showToast }) {
         count: refs.length,
       });
 
-      // Construir monthly desde los mismos datos (sin RPC)
-      const byMonth = {};
-      rows.forEach((r) => {
-        if (!r.order_id) return; // seguridad
-        // sale_date no está en este select — hacemos query separado
-      });
-
-      // Query mensual directo
-      const { data: mData } = await supabase
-        .from("sales")
-        .select("sale_date, order_id, royalty_usd")
-        .neq("status", "canceled");
-
       const monthMap = {};
-      (mData || []).forEach((r) => {
-        if (!r.sale_date) return;
+      (mRes.data || []).forEach((r) => {
         const m = r.sale_date.slice(0, 7);
-        if (!monthMap[m]) monthMap[m] = { orders: new Set(), revenue: 0 };
         monthMap[m].orders.add(r.order_id);
         monthMap[m].revenue += Number(r.royalty_usd);
       });
@@ -849,6 +832,20 @@ function SalesDashboard({ showToast }) {
         .sort((a, b) => b.month.localeCompare(a.month))
         .slice(0, 12);
       setSalesData(built);
+
+      const prods = prodRes.data || [];
+      const total = prods.length;
+      const selling = prods.filter((p) => Number(p.lifetime_orders) > 0).length;
+      const highSignal = prods.filter((p) => p.high_signal_seller).length;
+      const repeatSellers = prods.filter((p) => p.repeat_seller).length;
+      setProductStats({
+        total,
+        selling,
+        successRate: total ? ((selling / total) * 100).toFixed(1) : '0.0',
+        highSignal,
+        repeatSellers,
+      });
+
       setLoading(false);
     }
     load();
@@ -930,6 +927,42 @@ function SalesDashboard({ showToast }) {
         ))}
       </div>
 
+      {/* KPIs de portafolio */}
+      {productStats && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5,1fr)',
+            gap: 16,
+            marginBottom: 20,
+          }}
+        >
+          {[
+            ['Total productos', productStats.total, theme.text],
+            ['Selling products', productStats.selling, theme.accent],
+            ['Success Rate', productStats.successRate + '%', theme.success],
+            ['High Signal', productStats.highSignal, theme.accent],
+            ['Repeat Sellers', productStats.repeatSellers, theme.medium],
+          ].map(([label, value, color]) => (
+            <div
+              key={label}
+              style={{
+                background: theme.surface,
+                border: '1px solid ' + theme.border,
+                borderRadius: 8,
+                padding: 20,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                {label}
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color }}>
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Mes actual + Referrals */}
       <div
         style={{
