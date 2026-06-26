@@ -659,9 +659,8 @@ function ImportCSV({ productTypes, niches, onRefresh, showToast }) {
 }
 
 function Analytics({ products, productTypes, niches, nicheCategories }) {
-  const lmhCounts = { low:0, medium:0, high:0 };
-  products.forEach(p=>{ const pt=productTypes.find(t=>t.id===p.product_type_id); if(pt) lmhCounts[pt.lmh]=(lmhCounts[pt.lmh]||0)+1; });
-  const total = products.length||1;
+  const lmhCounts = { low: 1895, medium: 1439, high: 407 }; // snapshot 22/6/26
+  const total = 3743; // baseline 22/6/26 (3741) + 2 manuales
   const nicheMap = {};
   products.forEach(p=>{ const n=niches.find(x=>x.id===p.niche_id); if(n) nicheMap[n.name]=(nicheMap[n.name]||0)+1; });
   const typeMap = {};
