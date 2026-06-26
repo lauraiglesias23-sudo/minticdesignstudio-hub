@@ -1239,6 +1239,7 @@ function BestSellerAnalysis({ showToast }) {
         const prod = prodByStripped[stripped] || null;
         const prodActions = actions.filter((a) => (a.product_id || '').replace(/-/g, '') === stripped);
         const rawId = prod ? (prod.product_id || stripped) : stripped; const zazzleId = rawId.replace(/-/g, ''); return { stripped, zazzleId, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
+      });
       const priorityA = ranked.filter((r) => r.highSignal && r.repeat);
       setData({ byRevenue: [...ranked].sort((a, b) => b.revenue - a.revenue).slice(0, 15), byUnits: [...ranked].sort((a, b) => b.units - a.units).slice(0, 15), byCustomers: [...ranked].sort((a, b) => b.customers - a.customers).slice(0, 15), highSignal: ranked.filter((r) => r.highSignal).sort((a, b) => b.revenue - a.revenue), repeat: ranked.filter((r) => r.repeat).sort((a, b) => b.revenue - a.revenue), priorityA: priorityA.sort((a, b) => b.revenue - a.revenue), allByRevenue: [...ranked].sort((a, b) => b.revenue - a.revenue), allByUnits: [...ranked].sort((a, b) => b.units - a.units), allByCustomers: [...ranked].sort((a, b) => b.customers - a.customers), totalProducts: ranked.length });
       setLoading(false);
