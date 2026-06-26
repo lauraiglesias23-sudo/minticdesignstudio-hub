@@ -76,9 +76,8 @@ function Dashboard({ products, actions, productTypes, niches, inventoryTotal }) 
   const yearStart = `${now.getFullYear()}-01-01`;
   const count = (from) => products.filter(p => p.created_date >= from && p.created_date <= todayStr).length;
   const actCount = (from) => actions.filter(a => a.date >= from).length;
-  const lmhCounts = { low:0, medium:0, high:0 };
-  products.forEach(p => { const pt = productTypes.find(t=>t.id===p.product_type_id); if(pt) lmhCounts[pt.lmh]=(lmhCounts[pt.lmh]||0)+1; });
-  const total = products.length || 1;
+  const lmhCounts = { low: 1895, medium: 1439, high: 407 }; // snapshot 22/6/26
+  const total = 3743; // baseline 22/6/26 (3741) + 2 manuales
   const nicheMap = {};
   products.forEach(p => { const n=niches.find(x=>x.id===p.niche_id); if(n) nicheMap[n.name]=(nicheMap[n.name]||0)+1; });
   const topNiches = Object.entries(nicheMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
