@@ -1248,7 +1248,7 @@ function BestSellerAnalysis({ showToast }) {
     load();
   }, [preset, customFrom, customTo]);
 
-  const fmt = (n) => '
+    const fmt = (n) => '$' + Number(n).toFixed(2);
   { section:"Principal" },
   { id:"dashboard", label:"Dashboard" },
   { id:"quickadd", label:"Quick Add" },
