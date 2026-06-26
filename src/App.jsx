@@ -319,7 +319,23 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
               <div><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>URL</label><input style={inp} type="url" value={editProduct.url||""} onChange={e=>setEditProduct({...editProduct,url:e.target.value})} placeholder="https://"/></div>
             </div>
             <div style={{marginBottom:20}}><label style={{fontSize:11,fontWeight:600,color:theme.muted,textTransform:"uppercase",display:"block",marginBottom:5}}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={editProduct.notes||""} onChange={e=>setEditProduct({...editProduct,notes:e.target.value})}/></div>
-            <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+  <div><label style={lbl}>Buildout Phase</label><select style={inp} value={form.buildout_phase} onChange={e=>setForm({...form,buildout_phase:e.target.value})}>
+    <option value="">— Seleccionar —</option>
+    <option value="Phase 1">Phase 1 — Variations</option>
+    <option value="Phase 2">Phase 2 — Product Expansion</option>
+    <option value="Phase 3">Phase 3 — Niche Expansion</option>
+    <option value="Phase 4">Phase 4 — Ecosystem Expansion</option>
+  </select></div>
+  <div><label style={lbl}>Asset Status</label><select style={inp} value={form.asset_status} onChange={e=>setForm({...form,asset_status:e.target.value})}>
+    <option value="">— Seleccionar —</option>
+    <option value="Promote">Promote</option>
+    <option value="Passive">Passive</option>
+    <option value="Seed">Seed</option>
+  </select></div>
+  <div><label style={lbl}>Views</label><input style={inp} type="number" min="0" value={form.views} onChange={e=>setForm({...form,views:e.target.value})} placeholder="0"/></div>
+</div>
+<div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={()=>setEditProduct(null)} style={{padding:"8px 16px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:6,color:theme.text,fontSize:13,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleSaveEdit} disabled={saving} style={{padding:"8px 16px",background:theme.accent,border:"none",borderRadius:6,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
@@ -452,7 +468,7 @@ function Niches({ niches, nicheCategories, onRefresh, showToast }) {
 function BestSellerActions({ actions, onRefresh, showToast }) {
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ product_id:"", product_name:"", date:new Date().toISOString().split("T")[0], action:"", outcome:"", next_step:"", notes:"" });
+  const [form, setForm] = useState({ product_id:"", product_name:"", date:new Date().toISOString().split("T")[0], action:"", outcome:"", next_step:"", notes:"", buildout_phase:"", asset_status:"", views:"" });
   const [saving, setSaving] = useState(false);
   const inp = { width:"100%", padding:"9px 12px", background:theme.bg, border:`1px solid ${theme.border}`, borderRadius:6, color:theme.text, fontSize:13, outline:"none" };
   const filtered = actions.filter(a=>!search||a.product_name?.toLowerCase().includes(search.toLowerCase())||a.product_id?.includes(search)||a.action?.toLowerCase().includes(search.toLowerCase()));
@@ -463,7 +479,7 @@ function BestSellerActions({ actions, onRefresh, showToast }) {
     setSaving(false);
     if (error) return showToast("Error: "+error.message,"error");
     showToast("Accion registrada","success");
-    setForm({ product_id:"", product_name:"", date:new Date().toISOString().split("T")[0], action:"", outcome:"", next_step:"", notes:"" });
+    setForm({ product_id:"", product_name:"", date:new Date().toISOString().split("T")[0], action:"", outcome:"", next_step:"", notes:"", buildout_phase:"", asset_status:"", views:"" });
     setShowAdd(false); onRefresh();
   };
   const exportCSV = () => {
@@ -516,7 +532,7 @@ function BestSellerActions({ actions, onRefresh, showToast }) {
             <div style={{marginBottom:12}}><label style={lbl}>Accion realizada</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={form.action} onChange={e=>setForm({...form,action:e.target.value})}/></div>
             <div style={{marginBottom:12}}><label style={lbl}>Outcome</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={form.outcome} onChange={e=>setForm({...form,outcome:e.target.value})}/></div>
             <div style={{marginBottom:12}}><label style={lbl}>Proximo paso</label><input style={inp} value={form.next_step} onChange={e=>setForm({...form,next_step:e.target.value})}/></div>
-            <div style={{marginBottom:20}}><label style={lbl}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
+            <div style={{marginBottom:12}}><label style={lbl}>Notas</label><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={()=>setShowAdd(false)} style={{padding:"8px 16px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:6,color:theme.text,fontSize:13,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleAdd} disabled={saving} style={{padding:"8px 16px",background:theme.accent,border:"none",borderRadius:6,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
