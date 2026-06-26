@@ -1238,8 +1238,7 @@ function BestSellerAnalysis({ showToast }) {
       const ranked = Object.entries(agg).map(([stripped, d]) => {
         const prod = prodByStripped[stripped] || null;
         const prodActions = actions.filter((a) => (a.product_id || '').replace(/-/g, '') === stripped);
-        return { stripped, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
-      });
+        const rawId = prod ? (prod.product_id || stripped) : stripped; const zazzleId = rawId.replace(/-/g, ''); return { stripped, zazzleId, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
       const priorityA = ranked.filter((r) => r.highSignal && r.repeat);
       setData({ byRevenue: [...ranked].sort((a, b) => b.revenue - a.revenue).slice(0, 15), byUnits: [...ranked].sort((a, b) => b.units - a.units).slice(0, 15), byCustomers: [...ranked].sort((a, b) => b.customers - a.customers).slice(0, 15), highSignal: ranked.filter((r) => r.highSignal).sort((a, b) => b.revenue - a.revenue), repeat: ranked.filter((r) => r.repeat).sort((a, b) => b.revenue - a.revenue), priorityA: priorityA.sort((a, b) => b.revenue - a.revenue), totalProducts: ranked.length });
       setLoading(false);
@@ -1250,8 +1249,8 @@ function BestSellerAnalysis({ showToast }) {
   const fmtM = (n) => { const dSign = String.fromCharCode(36); return dSign + Number(n).toFixed(2); };
   const Bdg = ({ label, color, bg }) => <span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, color, background: bg, marginLeft: 4 }}>{label}</span>;
   const tabs = [{ id: 'revenue', label: 'Top Revenue' }, { id: 'units', label: 'Top Unidades' }, { id: 'customers', label: 'Top Clientes' }, { id: 'signals', label: 'Signals' }];
-  const colCfg = { revenue: { label: 'Revenue', key: 'revenue', fmt: fmtM }, units: { label: 'Unidades', key: 'units', fmt: (n) => n }, customers: { label: 'Clientes', key: 'customers', fmt: (n) => n } };
-  const tableRows = tab === 'revenue' ? (data ? data.byRevenue : []) : tab === 'units' ? (data ? data.byUnits : []) : (data ? data.byCustomers : []);
+  const colCfg = { revenue: { mainLabel: 'Revenue', mainKey: 'revenue', mainFmt: fmtM, secLabel: 'Unidades', secKey: 'units', secFmt: (n) => n }, units: { mainLabel: 'Unidades', mainKey: 'units', mainFmt: (n) => n, secLabel: 'Revenue', secKey: 'revenue', secFmt: fmtM }, customers: { mainLabel: 'Clientes', mainKey: 'customers', mainFmt: (n) => n, secLabel: 'Revenue', secKey: 'revenue', secFmt: fmtM } };
+  const tableRows = tab === 'revenue' ? (data ? data.byRevenue : []) : tab === 'units' ? (data ? data.byUnits : []) : (data ? data.byCustomers : []); const cfg = colCfg[tab] || colCfg.revenue;
 
   return (
     <div>
@@ -1260,7 +1259,7 @@ function BestSellerAnalysis({ showToast }) {
           <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>Best Seller Analysis</div>
           <div style={{ fontSize: 13, color: theme.muted, marginTop: 4 }}>Que debo multiplicar?</div>
         </div>
-        <DateRangeSelector preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><DateRangeSelector preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} /><div onClick={() => { if (!data) return; const rows = tab === 'signals' ? data.priorityA : (tab === 'revenue' ? data.byRevenue : tab === 'units' ? data.byUnits : data.byCustomers); const headers = ['Rank','Product Name','Product ID','URL','Revenue','Units','Customers','Orders','High Signal','Repeat','Priority A']; const dSign = String.fromCharCode(36); const lines = [headers.join(',')]; rows.forEach((r,i) => { lines.push([i+1,'"'+(r.name||'').replace(/"/g,'""')+'"',r.zazzleId,'"https://www.zazzle.com/store/minticdesignstudio/products?ps=128&dp='+r.zazzleId+'"',r.revenue.toFixed(2),r.units,r.customers,r.orders,r.highSignal?'Yes':'No',r.repeat?'Yes':'No',(r.highSignal&&r.repeat)?'Yes':'No'].join(',')); }); const blob = new Blob([lines.join('\n')],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='best_sellers_'+tab+'.csv'; a.click(); URL.revokeObjectURL(url); if(showToast) showToast('CSV exportado'); }} style={{ padding: '7px 14px', background: theme.accent, color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Export CSV</div></div>
       </div>
       {loading && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '40vh', color: theme.muted, fontSize: 14 }}>Cargando...</div>}
       {!loading && data && (
@@ -1279,14 +1278,13 @@ function BestSellerAnalysis({ showToast }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', marginBottom: 12 }}>Top 15 por {colCfg[tab].label}</div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead><tr>{['#', 'Producto', colCfg[tab].label, 'Revenue', 'Clientes', 'Senales'].map((h) => (<th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', borderBottom: '1px solid ' + theme.border, whiteSpace: 'nowrap' }}>{h}</th>))}</tr></thead>
+                  <thead><tr>{['#', 'Producto', 'Product ID', cfg.mainLabel, cfg.secLabel, 'Clientes', 'Senales'].map((h) => (<th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 600, color: theme.muted, textTransform: 'uppercase', borderBottom: '1px solid ' + theme.border, whiteSpace: 'nowrap' }}>{h}</th>))}</tr></thead>
                   <tbody>
                     {tableRows.map((r, i) => (
                       <tr key={r.stripped}>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted, fontWeight: 700, fontSize: 12 }}>{i + 1}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: theme.text }}>{r.name}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, fontWeight: 700, color: theme.accent }}>{colCfg[tab].fmt(r[colCfg[tab].key])}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: tab === 'revenue' ? theme.muted : theme.accent }}>{tab === 'revenue' ? '-' : fmtM(r.revenue)}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: theme.text }}><a href={'https://www.zazzle.com/store/minticdesignstudio/products?ps=128&dp=' + r.zazzleId} target="_blank" rel="noreferrer" style={{ color: theme.text, textDecoration: 'none' }} title={r.name}>{r.name}</a></td><td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted, fontSize: 11, fontFamily: 'monospace' }}><a href={'https://www.zazzle.com/store/minticdesignstudio/products?ps=128&dp=' + r.zazzleId} target="_blank" rel="noreferrer" style={{ color: theme.muted, textDecoration: 'none' }}>{r.zazzleId}</a></td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, fontWeight: 700, color: theme.accent }}>{cfg.mainFmt(r[cfg.mainKey])}</td><td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted }}>{cfg.secFmt(r[cfg.secKey])}</td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border, color: theme.muted }}>{r.customers}</td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid ' + theme.border }}>
                           {r.highSignal && r.repeat && <Bdg label="Priority A" color="#fff" bg={theme.danger} />}
