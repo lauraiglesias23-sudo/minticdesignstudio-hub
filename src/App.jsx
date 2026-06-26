@@ -1218,7 +1218,7 @@ function BestSellerAnalysis({ showToast }) {
       if (to) salesQ = salesQ.lte('sale_date', to);
       const [{ data: salesRaw }, { data: prodsRaw }, { data: actionsRaw }] = await Promise.all([
         salesQ,
-        supabase.from('products').select('id, product_id, name, url, high_signal_seller, repeat_seller, lifetime_orders')
+        supabase.from('products').select('id, product_id, name, url, high_signal_seller, repeat_seller, lifetime_orders'),
         supabase.from('best_seller_actions').select('product_id, product_name, date, action, buildout_phase, asset_status').order('date', { ascending: false }),
       ]);
       const sales = salesRaw || [];
