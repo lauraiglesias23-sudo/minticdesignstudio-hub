@@ -150,12 +150,13 @@ async function importCSV(rows, onProgress) {
       quantity: parseInt(row["Quantity"]) || 1,
       royalty_rate: row["Royalty Rate"],
       royalty_usd: parseRoyaltyUSD(row["Royalty (USD)"]),
+        is_fx_recalculated: isFxRecalculated(row["Royalty (USD)"]),
       status: (row["Status"] || "pending").toLowerCase().trim(),
       is_customized: row["Is Customized"] === "Yes",
       referred: row["Referred"],
       shipped_to: shippedTo,
       store: row["Store"],
-    }, { onConflict: "order_item_id", ignoreDuplicates: true });
+    }, { onConflict: "order_item_id", ignoreDuplicates: false });
 
     if (error) log.push(`⚠️ Sale error [${row["Order Item ID"]}]: ${error.message}`);
     else salesInserted++;
