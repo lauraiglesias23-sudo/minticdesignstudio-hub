@@ -1245,7 +1245,7 @@ function BestSellerAnalysis({ showToast }) {
       const allRev = [...ranked].sort((a, b) => b.revenue - a.revenue);
 const allUnits = [...ranked].sort((a, b) => b.units - a.units);
 const allCust = [...ranked].sort((a, b) => b.customers - a.customers);
-setData({ byRevenue: allRev.slice(0, 15), byUnits: allUnits.slice(0, 15), byCustomers: allCust.slice(0, 15), allByRevenue: allRev, allByUnits: allUnits, allByCustomers: allCust, priorityA });
+setData({ byRevenue: allRev.slice(0, 15), byUnits: allUnits.slice(0, 15), byCustomers: allCust.slice(0, 15), allByRevenue: allRev, allByUnits: allUnits, allByCustomers: allCust, priorityA, highSignal: ranked.filter(r => r.highSignal), repeat: ranked.filter(r => r.repeat) });
       setLoading(false);
     }
     load();
