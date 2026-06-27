@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ImportarRoyalties from "./pages/ImportarRoyalties";
 import ImportarReferrals from "./pages/ImportarReferrals";
+import MonthlyReview from "./pages/MonthlyReview";
 
 const SUPABASE_URL = "https://edlunosajckvtskzcpch.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkbHVub3NhamNrdnRza3pjcGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5Nzk4NjMsImV4cCI6MjA5NzU1NTg2M30.7a-wLtuoVeyRXJpQ2IsBPu8Qlu0MxOVIWJcfnSuqz4E";
@@ -1353,6 +1354,8 @@ const NAV = [
   { id:"best-seller", label:"Best Seller Analysis" },
   { id:"analytics", label:"Analytics" },
   { id:"reports", label:"Reportes" },
+  { id:"monthly-review", label:"Monthly Review" },
+  { id:"monthly-review", label:"Monthly Review" },
 ];
 
 function getInitialPage() {
@@ -1447,6 +1450,8 @@ export default function App() {
               {page==="best-seller"&&<BestSellerAnalysis showToast={showToast}/> }
               {page==="analytics"&&<Analytics {...common}/>}
               {page==="reports"&&<Reports {...common}/>}
+            {page==="monthly-review"&&<MonthlyReview/>}
+            {page==="monthly-review"&&<MonthlyReview/>}
             </>
         }
       </main>
