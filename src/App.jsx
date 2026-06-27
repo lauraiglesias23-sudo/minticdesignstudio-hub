@@ -1355,7 +1355,6 @@ const NAV = [
   { id:"analytics", label:"Analytics" },
   { id:"reports", label:"Reportes" },
   { id:"monthly-review", label:"Monthly Review" },
-  { id:"monthly-review", label:"Monthly Review" },
 ];
 
 function getInitialPage() {
@@ -1450,7 +1449,6 @@ export default function App() {
               {page==="best-seller"&&<BestSellerAnalysis showToast={showToast}/> }
               {page==="analytics"&&<Analytics {...common}/>}
               {page==="reports"&&<Reports {...common}/>}
-            {page==="monthly-review"&&<MonthlyReview/>}
             {page==="monthly-review"&&<MonthlyReview/>}
             </>
         }
