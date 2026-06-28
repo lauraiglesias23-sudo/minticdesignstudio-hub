@@ -835,13 +835,7 @@ function SalesDashboard({ showToast }) {
       setSalesData(built);
 
       const prods = prodRes.data || [];
-      const INVENTORY_TOTAL = 3743;
-const formatProductId = (id) => {
-  const s = String(id);
-  if (s.length === 18) return s.slice(0,3) + '-' + s.slice(3,11) + '-' + s.slice(11);
-  return s;
-};
- // baseline 22/6/26 (3741) + 2 manuales
+      const INVENTORY_TOTAL = 3743; // baseline 22/6/26 (3741) + 2 manuales
       const total = INVENTORY_TOTAL;
       const selling = prods.filter((p) => Number(p.lifetime_orders) > 0).length;
       const highSignal = prods.filter((p) => p.high_signal_seller).length;
@@ -1373,6 +1367,12 @@ function getInitialPage() {
   return path === "importar-royalties" ? "importar-royalties" : "dashboard";
 }
 
+
+const formatProductId = (id) => {
+  const s = String(id);
+  if (s.length === 18) return s.slice(0,3) + '-' + s.slice(3,11) + '-' + s.slice(11);
+  return s;
+};
 export default function App() {
   const [page, setPage] = useState(getInitialPage);
   const [products, setProducts] = useState([]);
