@@ -296,7 +296,9 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
               <button onClick={()=>setPage(1)} disabled={page===1} style={btnStyle(false)}>Primera</button>
               <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={btnStyle(false)}>Anterior</button>
               {Array.from({length:Math.min(5,totalPages)},(_,i)=>{
-                const pageNum = Math.min(Math.max(page-2,1)+i, totalPages);
+                const start = Math.min(Math.max(page-2,1), Math.max(totalPages-4,1));
+                const pageNum = start+i;
+                if(pageNum>totalPages) return null;
                 return <button key={pageNum} onClick={()=>setPage(pageNum)} style={btnStyle(pageNum===page)}>{pageNum}</button>;
               })}
               <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} style={btnStyle(false)}>Siguiente</button>
