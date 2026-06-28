@@ -1228,10 +1228,10 @@ function BestSellerAnalysis({ showToast }) {
       const prods = prodsRaw || [];
       const actions = actionsRaw || [];
       const prodByStripped = {};
-      prods.forEach((p) => { const s = (p.product_id || '').replace(/-/g, ''); prodByStripped[s] = p; });
+      prods.forEach((p) => { prodByStripped[p.product_id] = p; });
       const agg = {};
       sales.forEach((s) => {
-        const stripped = (s.product_id || '').replace(/-/g, '');
+        const stripped = s.product_id || '';
         if (!agg[stripped]) agg[stripped] = { revenue: 0, units: 0, customers: new Set(), orders: new Set() };
         agg[stripped].revenue += Number(s.royalty_usd || 0);
         agg[stripped].units += 1;
@@ -1240,7 +1240,7 @@ function BestSellerAnalysis({ showToast }) {
       });
       const ranked = Object.entries(agg).map(([stripped, d]) => {
         const prod = prodByStripped[stripped] || null;
-        const prodActions = actions.filter((a) => (a.product_id || '').replace(/-/g, '') === stripped);
+        const prodActions = actions.filter((a) => a.product_id === stripped);
         const rawId = prod ? (prod.product_id || stripped) : stripped; const zazzleId = rawId.replace(/-/g, ''); const productUrl = prod ? (prod.url || '') : ''; return { stripped, zazzleId, productUrl, name: prod ? prod.name : 'ID: ' + stripped, revenue: Math.round(d.revenue * 100) / 100, units: d.units, customers: d.customers.size, orders: d.orders.size, highSignal: prod ? !!prod.high_signal_seller : false, repeat: prod ? !!prod.repeat_seller : false, actions: prodActions };
       });
       const priorityA = ranked.filter((r) => r.highSignal && r.repeat);
