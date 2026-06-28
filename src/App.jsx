@@ -275,13 +275,13 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
                 return (
                   <tr key={p.id} style={{background:"transparent"}}>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,color:theme.text}}>{p.name}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,fontSize:11,whiteSpace:"nowrap"}}>{String(p.product_id)}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,fontSize:11,whiteSpace:"nowrap"}}>{formatProductId(p.product_id)}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.text}}>{pt?.name||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{pt&&<span style={{padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:600,background:pt.lmh==="low"?"rgba(45,106,79,0.1)":pt.lmh==="medium"?"rgba(181,130,10,0.1)":"rgba(192,57,43,0.1)",color:lmhColor(pt.lmh)}}>{pt.lmh}</span>}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.text}}>{n?.name||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,whiteSpace:"nowrap"}}>{p.created_date||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{p.url?<a href={p.url} target="_blank" rel="noopener noreferrer" style={{color:theme.accent,textDecoration:"underline",cursor:"pointer"}}>Ver</a>:"—"}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}><button onClick={()=>setEditProduct({...p, product_id: String(p.product_id)})} style={{padding:"3px 10px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:5,color:theme.text,fontSize:11,cursor:"pointer"}}>Editar</button></td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}><button onClick={()=>setEditProduct({...p, product_id: formatProductId(p.product_id)})} style={{padding:"3px 10px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:5,color:theme.text,fontSize:11,cursor:"pointer"}}>Editar</button></td>
                   </tr>
                 );
               })}
@@ -835,7 +835,13 @@ function SalesDashboard({ showToast }) {
       setSalesData(built);
 
       const prods = prodRes.data || [];
-      const INVENTORY_TOTAL = 3743; // baseline 22/6/26 (3741) + 2 manuales
+      const INVENTORY_TOTAL = 3743;
+const formatProductId = (id) => {
+  const s = String(id);
+  if (s.length === 18) return s.slice(0,3) + '-' + s.slice(3,11) + '-' + s.slice(11);
+  return s;
+};
+ // baseline 22/6/26 (3741) + 2 manuales
       const total = INVENTORY_TOTAL;
       const selling = prods.filter((p) => Number(p.lifetime_orders) > 0).length;
       const highSignal = prods.filter((p) => p.high_signal_seller).length;
