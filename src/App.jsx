@@ -281,7 +281,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.text}}>{n?.name||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,whiteSpace:"nowrap"}}>{p.created_date||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{p.url?<a href={p.url} target="_blank" rel="noopener noreferrer" style={{color:theme.accent,textDecoration:"underline",cursor:"pointer"}}>Ver</a>:"—"}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}><button onClick={()=>setEditProduct({...p})} style={{padding:"3px 10px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:5,color:theme.text,fontSize:11,cursor:"pointer"}}>Editar</button></td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}><button onClick={()=>setEditProduct({...p, product_id: String(p.product_id)})} style={{padding:"3px 10px",background:theme.bg,border:`1px solid ${theme.border}`,borderRadius:5,color:theme.text,fontSize:11,cursor:"pointer"}}>Editar</button></td>
                   </tr>
                 );
               })}
