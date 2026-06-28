@@ -275,7 +275,7 @@ function ProductMaster({ products, productTypes, niches, onRefresh, showToast })
                 return (
                   <tr key={p.id} style={{background:"transparent"}}>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,color:theme.text}}>{p.name}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,fontSize:11,whiteSpace:"nowrap"}}>{p.product_id}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.muted,fontSize:11,whiteSpace:"nowrap"}}>{String(p.product_id)}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.text}}>{pt?.name||"—"}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`}}>{pt&&<span style={{padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:600,background:pt.lmh==="low"?"rgba(45,106,79,0.1)":pt.lmh==="medium"?"rgba(181,130,10,0.1)":"rgba(192,57,43,0.1)",color:lmhColor(pt.lmh)}}>{pt.lmh}</span>}</td>
                     <td style={{padding:"10px 12px",borderBottom:`1px solid ${theme.border}`,color:theme.text}}>{n?.name||"—"}</td>
