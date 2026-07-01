@@ -797,7 +797,7 @@ function SalesDashboard({ showToast }) {
         supabase.from('sales').select('order_id, royalty_usd, customer_id').neq('status', 'canceled'),
         supabase.from('referrals').select('referral_amount_usd'),
         supabase.from('sales').select('sale_date, order_id, royalty_usd').neq('status', 'canceled'),
-        supabase.from('products').select('lifetime_orders, high_signal_seller, repeat_seller'),
+        supabase.from('products').select('lifetime_orders, high_signal_seller, repeat_seller, created_date'),
       ]);
 
       const rows = totalsRes.data || [];
@@ -837,8 +837,12 @@ function SalesDashboard({ showToast }) {
       setSalesData(built);
 
       const prods = prodRes.data || [];
-      const INVENTORY_TOTAL = 3743; // baseline 22/6/26 (3741) + 2 manuales
-      const total = INVENTORY_TOTAL;
+      const BASELINE_DATE = '2026-06-22';
+      const BASELINE_TOTAL = 3741; // snapshot fijo del 22/6/26, no cambia
+      const productsAfterBaseline = prods.filter(
+        (p) => p.created_date && p.created_date > BASELINE_DATE
+      ).length;
+      const total = BASELINE_TOTAL + productsAfterBaseline;
       const selling = prods.filter((p) => Number(p.lifetime_orders) > 0).length;
       const highSignal = prods.filter((p) => p.high_signal_seller).length;
       const repeatSellers = prods.filter((p) => p.repeat_seller).length;
