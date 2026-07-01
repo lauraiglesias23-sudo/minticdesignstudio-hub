@@ -211,7 +211,7 @@ async function importCSV(rows, onProgress) {
       else productsUpdated++;
     } else {
       const { error } = await supabase.from("products").insert({
-        product_id: normPid,
+        product_id: pidRows[0]["Product ID"],
         name: pidRows[0]["Product Title"],
         is_new: false,
         is_evergreen: true,
