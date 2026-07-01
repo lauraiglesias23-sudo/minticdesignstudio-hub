@@ -18,6 +18,11 @@ function parseRoyaltyUSD(raw) {
   return isNaN(val) ? 0 : val;
 }
 
+function isFxRecalculated(raw) {
+  if (!raw) return false;
+  return /\*/.test(raw);
+}
+
 function parseDate(raw) {
   if (!raw) return new Date(NaN);
   // Formato Zazzle: M/D/YYYY H:MM o M/D/YYYY
