@@ -70,8 +70,11 @@ async function fetchSuccessRate(start, end) {
   const { data: sd } = await supabase.from("sales").select("product_id")
     .neq("status","canceled").gte("sale_date", start+"T00:00:00").lte("sale_date", end+"T23:59:59");
   const selling = new Set((sd||[]).map(r => r.product_id.replace(/-/g,""))).size;
-  const { count } = await supabase.from("products").select("id",{count:"exact",head:true});
-  return { sellingProducts: selling, totalProducts: count||0, successRate: count > 0 ? (selling/count)*100 : 0 };
+  const BASELINE_DATE = "2026-06-22";
+  const BASELINE_TOTAL = 3741;
+  const { count: newCount } = await supabase.from("products").select("id",{count:"exact",head:true}).gt("created_date", BASELINE_DATE);
+  const totalProducts = BASELINE_TOTAL + (newCount||0);
+  return { sellingProducts: selling, totalProducts, successRate: totalProducts > 0 ? (selling/totalProducts)*100 : 0 };
 }
 
 async function fetchConversionRate(start, end) {
